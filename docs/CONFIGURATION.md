@@ -687,7 +687,7 @@ If you encounter configuration issues:
 1. **Validate YAML syntax**: Use [YAML Lint](https://www.yamllint.com/)
 2. **Check logs**: `journalctl -u proxicloud-api -n 100`
 3. **Test API token**: See troubleshooting in [INSTALLATION.md](INSTALLATION.md)
-4. **Ask for help**: [GitHub Discussions](https://github.com/yourusername/proxicloud/discussions)
+4. **Ask for help**: [GitHub Discussions](https://github.com/MasonD-007/proxicloud/discussions)
 
 ---
 

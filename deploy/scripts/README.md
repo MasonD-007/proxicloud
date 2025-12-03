@@ -110,7 +110,7 @@ sudo ./deploy/scripts/uninstall.sh
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/proxicloud
+git clone https://github.com/MasonD-007/proxicloud
 cd proxicloud
 
 # Build all platforms
@@ -124,7 +124,7 @@ gh release create v1.0.0 build/*.tar.gz build/SHA256SUMS
 
 ```bash
 # Download release
-wget https://github.com/yourusername/proxicloud/releases/download/v1.0.0/proxicloud-v1.0.0-linux-amd64.tar.gz
+wget https://github.com/MasonD-007/proxicloud/releases/download/v1.0.0/proxicloud-v1.0.0-linux-amd64.tar.gz
 
 # Extract
 tar xzf proxicloud-v1.0.0-linux-amd64.tar.gz

@@ -52,7 +52,7 @@ ProxiCloud brings the simplicity and elegance of AWS EC2 console to your Proxmox
 Run this command on your **Proxmox VE node** as root:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh)
 ```
 
 The installer will:
@@ -172,7 +172,7 @@ Contributions are welcome! Please read our [Development Guide](docs/DEVELOPMENT.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/proxicloud.git
+git clone https://github.com/MasonD-007/proxicloud.git
 cd proxicloud
 ```
 
@@ -210,8 +210,8 @@ ProxiCloud is open-source software licensed under the [MIT License](LICENSE).
 ## 📞 Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/proxicloud/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/proxicloud/discussions)
+- **Issues**: [GitHub Issues](https://github.com/MasonD-007/proxicloud/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/MasonD-007/proxicloud/discussions)
 
 ---
 

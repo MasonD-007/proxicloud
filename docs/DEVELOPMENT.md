@@ -48,7 +48,7 @@ git --version
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/proxicloud.git
+git clone https://github.com/MasonD-007/proxicloud.git
 cd proxicloud
 ```
 
@@ -664,8 +664,8 @@ SELECT * FROM metrics WHERE vmid = 100 LIMIT 10;
 - [Go Playground](https://go.dev/play/)
 
 ### Community
-- [GitHub Discussions](https://github.com/yourusername/proxicloud/discussions)
-- [GitHub Issues](https://github.com/yourusername/proxicloud/issues)
+- [GitHub Discussions](https://github.com/MasonD-007/proxicloud/discussions)
+- [GitHub Issues](https://github.com/MasonD-007/proxicloud/issues)
 
 ---
 

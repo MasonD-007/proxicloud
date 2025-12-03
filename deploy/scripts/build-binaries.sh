@@ -165,7 +165,7 @@ Quick Start:
 4. Access: http://localhost:3000
 
 For full documentation, visit:
-https://github.com/yourusername/proxicloud
+https://github.com/MasonD-007/proxicloud
 
 Installation:
 See deploy/install.sh for automated installation

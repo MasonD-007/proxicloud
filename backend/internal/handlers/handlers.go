@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/MasonD-007/proxicloud/backend/internal/analytics"
+	"github.com/MasonD-007/proxicloud/backend/internal/cache"
+	"github.com/MasonD-007/proxicloud/backend/internal/proxmox"
 	"github.com/gorilla/mux"
-	"github.com/yourusername/proxicloud/backend/internal/analytics"
-	"github.com/yourusername/proxicloud/backend/internal/cache"
-	"github.com/yourusername/proxicloud/backend/internal/proxmox"
 )
 
 // Handler holds the Proxmox client, cache, and analytics

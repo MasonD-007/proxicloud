@@ -395,9 +395,9 @@ import (
     "syscall"
     "time"
 
-    "github.com/yourusername/proxicloud/backend/internal/config"
-    "github.com/yourusername/proxicloud/backend/internal/proxmox"
-    "github.com/yourusername/proxicloud/backend/internal/server"
+    "github.com/MasonD-007/proxicloud/backend/internal/config"
+    "github.com/MasonD-007/proxicloud/backend/internal/proxmox"
+    "github.com/MasonD-007/proxicloud/backend/internal/server"
 )
 
 var version = "1.0.0"

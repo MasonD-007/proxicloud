@@ -2,7 +2,7 @@
 
 **Release Date**: December 3, 2024  
 **Status**: Production Ready  
-**Download**: [GitHub Releases](https://github.com/yourusername/proxicloud/releases/tag/v1.0.0)
+**Download**: [GitHub Releases](https://github.com/MasonD-007/proxicloud/releases/tag/v1.0.0)
 
 ---
 
@@ -56,14 +56,14 @@ ProxiCloud v1.0.0 is the first production-ready release of the AWS-style managem
 
 ```bash
 # Download and run installer
-curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh | sudo bash
 ```
 
 ### Manual Install
 
 ```bash
 # Download release
-wget https://github.com/yourusername/proxicloud/releases/download/v1.0.0/proxicloud-v1.0.0-linux-amd64.tar.gz
+wget https://github.com/MasonD-007/proxicloud/releases/download/v1.0.0/proxicloud-v1.0.0-linux-amd64.tar.gz
 
 # Extract
 tar xzf proxicloud-v1.0.0-linux-amd64.tar.gz
@@ -277,8 +277,8 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ### Getting Help
 - **Documentation**: Check the docs/ directory
-- **Issues**: [GitHub Issues](https://github.com/yourusername/proxicloud/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/proxicloud/discussions)
+- **Issues**: [GitHub Issues](https://github.com/MasonD-007/proxicloud/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/MasonD-007/proxicloud/discussions)
 
 ### Reporting Bugs
 1. Check existing issues

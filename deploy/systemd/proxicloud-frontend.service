@@ -1,6 +1,6 @@
 [Unit]
 Description=ProxiCloud Frontend Server
-Documentation=https://github.com/yourusername/proxicloud
+Documentation=https://github.com/MasonD-007/proxicloud
 After=network-online.target proxicloud-api.service
 Wants=network-online.target
 Requires=proxicloud-api.service

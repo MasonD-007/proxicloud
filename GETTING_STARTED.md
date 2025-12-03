@@ -23,7 +23,7 @@ Before starting development, ensure you have:
 
 ```bash
 # Clone repository (if not already done)
-git clone https://github.com/yourusername/proxicloud.git
+git clone https://github.com/MasonD-007/proxicloud.git
 cd proxicloud
 
 # Create backend directory structure
@@ -40,7 +40,7 @@ mkdir -p frontend/{app,components,lib,public}
 cd backend
 
 # Initialize Go module
-go mod init github.com/yourusername/proxicloud/backend
+go mod init github.com/MasonD-007/proxicloud/backend
 
 # Add dependencies
 go get github.com/gorilla/mux
@@ -424,7 +424,7 @@ When you're ready to begin:
 ```bash
 # Start with backend
 cd backend
-go mod init github.com/yourusername/proxicloud/backend
+go mod init github.com/MasonD-007/proxicloud/backend
 # Follow backend checklist above
 
 # Then frontend

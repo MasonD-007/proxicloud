@@ -2,7 +2,7 @@
 set -e
 
 # ProxiCloud One-Line Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh | bash
 
 echo "==================================="
 echo "ProxiCloud Installer"
@@ -32,7 +32,7 @@ if [ -d ".git" ]; then
     echo "Repository already exists, pulling latest changes..."
     git pull
 else
-    git clone https://github.com/yourusername/proxicloud.git .
+    git clone https://github.com/MasonD-007/proxicloud.git .
 fi
 
 # Build backend

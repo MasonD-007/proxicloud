@@ -26,13 +26,13 @@ This guide will walk you through installing ProxiCloud on your Proxmox VE node.
 SSH into your Proxmox node as root and run:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh)
 ```
 
 Or download and inspect the script first:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -126,7 +126,7 @@ ssh root@your-proxmox-ip
 Run the installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yourusername/proxicloud/main/deploy/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MasonD-007/proxicloud/main/deploy/install.sh)
 ```
 
 #### Installer Process
@@ -369,8 +369,8 @@ A built-in update mechanism is planned for v1.1.
 1. Download the latest binaries:
 ```bash
 cd /tmp
-curl -LO https://github.com/yourusername/proxicloud/releases/latest/download/proxicloud-api-linux-amd64
-curl -LO https://github.com/yourusername/proxicloud/releases/latest/download/proxicloud-frontend-linux.tar.gz
+curl -LO https://github.com/MasonD-007/proxicloud/releases/latest/download/proxicloud-api-linux-amd64
+curl -LO https://github.com/MasonD-007/proxicloud/releases/latest/download/proxicloud-frontend-linux.tar.gz
 ```
 
 2. Stop services:
@@ -558,8 +558,8 @@ sqlite3 /var/lib/proxicloud/analytics.db \
 ## 📞 Getting Help
 
 - **Documentation**: Check other docs in [docs/](.)
-- **GitHub Issues**: [Report a bug](https://github.com/yourusername/proxicloud/issues)
-- **Discussions**: [Ask questions](https://github.com/yourusername/proxicloud/discussions)
+- **GitHub Issues**: [Report a bug](https://github.com/MasonD-007/proxicloud/issues)
+- **Discussions**: [Ask questions](https://github.com/MasonD-007/proxicloud/discussions)
 
 ---
 

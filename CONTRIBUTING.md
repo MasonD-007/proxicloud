@@ -50,7 +50,7 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development setup instruc
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/proxicloud.git
+git clone https://github.com/MasonD-007/proxicloud.git
 cd proxicloud
 
 # Backend setup
@@ -299,7 +299,7 @@ Then create a Pull Request on GitHub.
 
 ### Before Submitting
 
-1. Check [existing issues](https://github.com/yourusername/proxicloud/issues)
+1. Check [existing issues](https://github.com/MasonD-007/proxicloud/issues)
 2. Ensure you're using the latest version
 3. Try to reproduce the bug
 
@@ -343,7 +343,7 @@ Paste relevant logs here
 
 ### Before Submitting
 
-1. Check [existing feature requests](https://github.com/yourusername/proxicloud/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+1. Check [existing feature requests](https://github.com/MasonD-007/proxicloud/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
 2. Ensure it aligns with project goals
 3. Consider if it benefits most users
 
@@ -382,8 +382,8 @@ New contributors should look for issues labeled:
 ## 📞 Getting Help
 
 - **Documentation**: Check [docs/](docs/)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/proxicloud/discussions)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/proxicloud/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/MasonD-007/proxicloud/discussions)
+- **Issues**: [GitHub Issues](https://github.com/MasonD-007/proxicloud/issues)
 
 ---
 

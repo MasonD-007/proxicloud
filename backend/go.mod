@@ -1,4 +1,4 @@
-module github.com/yourusername/proxicloud/backend
+module github.com/MasonD-007/proxicloud/backend
 
 go 1.21
 

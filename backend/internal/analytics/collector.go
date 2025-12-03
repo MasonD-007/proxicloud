@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/yourusername/proxicloud/backend/internal/proxmox"
+	"github.com/MasonD-007/proxicloud/backend/internal/proxmox"
 )
 
 // Collector handles background metrics collection
