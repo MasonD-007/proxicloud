@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Create dist directory
+        run: mkdir -p dist
+      
+      # Build backend for multiple platforms
+      - name: Build backend (linux-amd64)
+        working-directory: ./backend
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go build -v -o ../dist/proxicloud-api-linux-amd64 \
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
+            cmd/api/main.go
+      
+      - name: Build backend (linux-arm64)
+        working-directory: ./backend
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -v -o ../dist/proxicloud-api-linux-arm64 \
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
+            cmd/api/main.go
+      
+      # Build frontend
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+      
+      - name: Package frontend
+        run: |
+          cd frontend
+          tar -czf ../dist/proxicloud-frontend.tar.gz \
+            .next/ \
+            public/ \
+            package.json \
+            package-lock.json \
+            next.config.js \
+            tsconfig.json
+      
+      # Generate checksums
+      - name: Generate checksums
+        working-directory: ./dist
+        run: |
+          sha256sum proxicloud-api-linux-amd64 > checksums.txt
+          sha256sum proxicloud-api-linux-arm64 >> checksums.txt
+          sha256sum proxicloud-frontend.tar.gz >> checksums.txt
+      
+      # Create release notes
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md <<EOF
+          ## ProxiCloud ${{ steps.version.outputs.VERSION }}
+          
+          ### Installation
+          
+          Run the one-line installer on your Proxmox node:
+          
+          \`\`\`bash
+          bash <(curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/deploy/install.sh)
+          \`\`\`
+          
+          ### What's New
+          
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          
+          ### Downloads
+          
+          - **Backend API**: Choose based on your Proxmox host architecture
+            - \`proxicloud-api-linux-amd64\` - For Intel/AMD 64-bit
+            - \`proxicloud-api-linux-arm64\` - For ARM 64-bit (e.g., Raspberry Pi 4)
+          
+          - **Frontend**: \`proxicloud-frontend.tar.gz\` (platform-independent)
+          
+          ### Checksums
+          
+          Verify your downloads:
+          \`\`\`bash
+          sha256sum -c checksums.txt
+          \`\`\`
+          
+          ### Documentation
+          
+          - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/docs/INSTALLATION.md)
+          - [Configuration Reference](https://github.com/${{ github.repository }}/blob/main/docs/CONFIGURATION.md)
+          - [API Documentation](https://github.com/${{ github.repository }}/blob/main/docs/API.md)
+          
+          ---
+          
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/...
+          EOF
+      
+      # Create GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/proxicloud-api-linux-amd64
+            dist/proxicloud-api-linux-arm64
+            dist/proxicloud-frontend.tar.gz
+            dist/checksums.txt
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Update latest tag for installer script
+      - name: Update latest tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -f latest
+          git push -f origin latest

@@ -1,0 +1,115 @@
+# Binaries and executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+api
+proxicloud-api*
+
+# Test binaries
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+*.coverprofile
+
+# Go workspace file
+go.work
+
+# Backend specific
+backend/bin/
+backend/tmp/
+backend/vendor/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+logs/
+/var/log/proxicloud/
+
+# Config files with secrets
+config.yaml
+config.yml
+*.env
+.env.local
+.env.*.local
+/etc/proxicloud/config.yaml
+
+# Frontend build output
+.next/
+out/
+dist/
+build/
+
+# Frontend dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend cache and temp files
+.cache/
+.parcel-cache/
+.turbo/
+.vercel/
+.swc/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+
+# Archive files
+*.tar.gz
+*.tar.bz2
+*.zip
+*.7z
+
+# Deployment artifacts
+/opt/proxicloud/
+/var/lib/proxicloud/
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Documentation build
+site/
+_site/
+
+# Proxicloud specific
+proxicloud-frontend.tar.gz
+checksums.txt
+
+# Development configs
+/tmp/proxicloud/

@@ -1,0 +1,42 @@
+[Unit]
+Description=ProxiCloud Frontend Server
+Documentation=https://github.com/yourusername/proxicloud
+After=network-online.target proxicloud-api.service
+Wants=network-online.target
+Requires=proxicloud-api.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Path to Node.js and the Next.js server
+ExecStart=/usr/bin/npm start
+
+# Working directory (where package.json is located)
+WorkingDirectory=/opt/proxicloud/frontend
+
+# Environment variables
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+Environment="NEXT_PUBLIC_API_URL=http://localhost:8080/api"
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits (optional)
+# LimitNOFILE=65536
+# MemoryLimit=512M
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxicloud-frontend
+
+[Install]
+WantedBy=multi-user.target

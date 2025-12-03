@@ -1,0 +1,93 @@
+# ProxiCloud Configuration File
+# This is an example configuration file. Copy this to /etc/proxicloud/config.yaml
+# and customize for your environment.
+
+# Proxmox Connection Settings
+proxmox:
+  # Proxmox API endpoint URL
+  # Use localhost when ProxiCloud runs on the same Proxmox node
+  api_url: "https://localhost:8006/api2/json"
+  
+  # Proxmox API token for authentication
+  # Format: user@realm!tokenid=secret
+  # Create via: Datacenter → Permissions → API Tokens
+  # IMPORTANT: Disable "Privilege Separation" when creating the token
+  api_token: "root@pam!proxicloud=REPLACE-WITH-YOUR-TOKEN"
+  
+  # Proxmox node name
+  # Leave empty to auto-detect from hostname
+  node: ""
+  
+  # Skip TLS certificate verification (required for self-signed certs)
+  insecure_skip_verify: true
+
+# Server Configuration
+server:
+  # Backend API port
+  backend_port: 8080
+  
+  # Frontend web UI port
+  frontend_port: 3000
+  
+  # Bind address
+  # - "0.0.0.0" = Listen on all interfaces (LAN accessible)
+  # - "127.0.0.1" = Listen on localhost only
+  bind_address: "0.0.0.0"
+
+# Analytics & Metrics
+analytics:
+  # Metrics collection interval
+  # Format: "30s", "1m", "5m", etc.
+  interval: "30s"
+  
+  # Data retention period (days)
+  # Older data is automatically deleted
+  retention_days: 30
+  
+  # SQLite database path
+  database_path: "/var/lib/proxicloud/analytics.db"
+
+# Storage Configuration
+storage:
+  # Default storage for new containers
+  # Must match a storage ID in Proxmox
+  # Common values: "local", "local-lvm", "local-zfs"
+  default_storage: "local-lvm"
+
+# Container Templates
+templates:
+  # Featured templates to show in the create container form
+  # Template IDs must match those available in Proxmox
+  # Use: pveam available  (to list available templates)
+  featured:
+    - "ubuntu-22.04-standard"
+    - "ubuntu-24.04-standard"
+    - "debian-12-standard"
+    - "alpine-3.19-default"
+    - "rockylinux-9-default"
+
+# Logging
+logging:
+  # Log level: debug, info, warn, error
+  level: "info"
+  
+  # Log file path
+  path: "/var/log/proxicloud/app.log"
+
+# Default Container Settings
+defaults:
+  # Default CPU cores for new containers
+  cpu_cores: 2
+  
+  # Default RAM in megabytes
+  memory_mb: 1024
+  
+  # Default root disk size in gigabytes
+  disk_gb: 9
+  
+  # Default network bridge
+  network_bridge: "vmbr0"
+  
+  # Prefix for auto-generated container names
+  # Format: {prefix}-{number} (e.g., proxicloud-001)
+  container_name_prefix: "proxicloud"
