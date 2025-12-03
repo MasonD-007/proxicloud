@@ -21,7 +21,9 @@ func Load(path string) (*Config, error) {
 
 	// Override with environment variables if present
 	if port := os.Getenv("PORT"); port != "" {
-		fmt.Sscanf(port, "%d", &cfg.Server.Port)
+		if _, err := fmt.Sscanf(port, "%d", &cfg.Server.Port); err != nil {
+			return nil, fmt.Errorf("invalid PORT environment variable: %w", err)
+		}
 	}
 	if host := os.Getenv("HOST"); host != "" {
 		cfg.Server.Host = host

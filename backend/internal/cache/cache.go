@@ -74,7 +74,11 @@ func (c *Cache) SetContainers(containers []proxmox.Container) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
 	// Clear old data
 	if _, err := tx.Exec("DELETE FROM containers"); err != nil {

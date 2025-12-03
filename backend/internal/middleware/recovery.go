@@ -17,7 +17,9 @@ func Recovery(next http.Handler) http.Handler {
 				// Return 500 Internal Server Error
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"error":"internal server error"}`))
+				if _, writeErr := w.Write([]byte(`{"error":"internal server error"}`)); writeErr != nil {
+					log.Printf("Failed to write error response: %v", writeErr)
+				}
 			}
 		}()
 
