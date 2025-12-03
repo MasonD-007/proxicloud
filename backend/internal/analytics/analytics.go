@@ -134,8 +134,8 @@ func (a *Analytics) RecordMetrics(metrics []Metric) error {
 		return err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction: %v", err)
+		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", rbErr)
 		}
 	}()
 
