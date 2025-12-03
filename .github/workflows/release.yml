@@ -45,7 +45,7 @@ jobs:
         run: |
           go build -v -o ../dist/proxicloud-api-linux-amd64 \
             -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
-            cmd/api/main.go
+            ./cmd/api/main.go
       
       - name: Build backend (linux-arm64)
         working-directory: ./backend
@@ -55,7 +55,7 @@ jobs:
         run: |
           go build -v -o ../dist/proxicloud-api-linux-arm64 \
             -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
-            cmd/api/main.go
+            ./cmd/api/main.go
       
       # Build frontend
       - name: Install frontend dependencies

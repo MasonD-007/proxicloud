@@ -101,7 +101,7 @@ export function createSuccessToast(message: string): ToastOptions {
 }
 
 // Error logging utility
-export function logError(error: unknown, context?: Record<string, any>) {
+export function logError(error: unknown, context?: Record<string, unknown>) {
   console.error('Application Error:', {
     error,
     message: error instanceof Error ? error.message : 'Unknown error',
@@ -127,14 +127,14 @@ export function logError(error: unknown, context?: Record<string, any>) {
       }
       
       localStorage.setItem('recentErrors', JSON.stringify(recentErrors));
-    } catch (e) {
+    } catch {
       // Ignore localStorage errors
     }
   }
 }
 
 // React hook-friendly error handler
-export function handleError(error: unknown, context?: Record<string, any>) {
+export function handleError(error: unknown, context?: Record<string, unknown>) {
   logError(error, context);
   return formatErrorMessage(error);
 }

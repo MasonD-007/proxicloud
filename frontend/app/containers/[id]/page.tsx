@@ -29,6 +29,7 @@ export default function ContainerDetailPage() {
       const interval = setInterval(loadContainer, 5000); // Refresh every 5 seconds
       return () => clearInterval(interval);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vmid]);
 
   async function loadContainer() {

@@ -97,7 +97,7 @@ export default function CreateContainerPage() {
     }
   }
 
-  function handleInputChange(field: keyof CreateContainerRequest, value: any) {
+  function handleInputChange(field: keyof CreateContainerRequest, value: string | number | boolean) {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => {
