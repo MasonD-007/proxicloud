@@ -24,7 +24,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
       
@@ -110,7 +110,7 @@ jobs:
         run: |
           go build -v -o ../dist/proxicloud-api-${{ matrix.goos }}-${{ matrix.goarch }} \
             -ldflags="-s -w" \
-            ./cmd/api/main.go
+            ./cmd/api
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -181,3 +181,5 @@ jobs:
           version: latest
           working-directory: backend
           args: --timeout=5m --out-format=colored-line-number
+          skip-cache: true
+          skip-save-cache: true
