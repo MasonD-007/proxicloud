@@ -1,0 +1,212 @@
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, Template } from './types';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+// Global state for cache status
+let isUsingCache = false;
+let cacheListeners: Array<(cached: boolean) => void> = [];
+
+export function onCacheStatusChange(listener: (cached: boolean) => void) {
+  cacheListeners.push(listener);
+  return () => {
+    cacheListeners = cacheListeners.filter((l) => l !== listener);
+  };
+}
+
+function notifyCacheStatus(cached: boolean) {
+  if (isUsingCache !== cached) {
+    isUsingCache = cached;
+    cacheListeners.forEach((listener) => listener(cached));
+  }
+}
+
+export function isCached(): boolean {
+  return isUsingCache;
+}
+
+// Retry configuration
+interface RetryOptions {
+  maxRetries?: number;
+  retryDelay?: number;
+  retryOn?: number[]; // HTTP status codes to retry on
+  backoff?: 'linear' | 'exponential';
+}
+
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  maxRetries: 3,
+  retryDelay: 1000, // 1 second
+  retryOn: [408, 429, 500, 502, 503, 504], // Request timeout, rate limit, server errors
+  backoff: 'exponential',
+};
+
+// Sleep utility
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Calculate retry delay with backoff
+function getRetryDelay(attempt: number, options: RetryOptions): number {
+  const baseDelay = options.retryDelay || 1000;
+  
+  if (options.backoff === 'exponential') {
+    return baseDelay * Math.pow(2, attempt);
+  }
+  
+  return baseDelay * (attempt + 1);
+}
+
+// Enhanced error class
+export class APIError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public statusText?: string,
+    public endpoint?: string,
+    public isRetryable?: boolean
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
+
+async function fetchAPI<T>(
+  endpoint: string,
+  options?: RequestInit,
+  retryOptions: RetryOptions = DEFAULT_RETRY_OPTIONS
+): Promise<T> {
+  const maxRetries = retryOptions.maxRetries || 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        ...options,
+      });
+
+      // Check if response is from cache
+      const cacheStatus = response.headers.get('X-Cache-Status');
+      notifyCacheStatus(cacheStatus === 'HIT');
+
+      // Check if we should retry based on status code
+      const shouldRetry = retryOptions.retryOn?.includes(response.status);
+      
+      if (!response.ok) {
+        const errorMessage = await response.text().catch(() => response.statusText);
+        const error = new APIError(
+          errorMessage || `API error: ${response.statusText}`,
+          response.status,
+          response.statusText,
+          endpoint,
+          shouldRetry
+        );
+
+        // Retry on specific status codes if not the last attempt
+        if (shouldRetry && attempt < maxRetries) {
+          lastError = error;
+          const delay = getRetryDelay(attempt, retryOptions);
+          console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      // Network errors (e.g., offline, CORS)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        const networkError = new APIError(
+          'Network error: Unable to connect to the server',
+          0,
+          'Network Error',
+          endpoint,
+          true
+        );
+
+        // Retry network errors if not the last attempt
+        if (attempt < maxRetries) {
+          lastError = networkError;
+          const delay = getRetryDelay(attempt, retryOptions);
+          console.warn(`Network error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+
+        throw networkError;
+      }
+
+      // Re-throw APIError or other errors
+      if (error instanceof APIError) {
+        if (error.isRetryable && attempt < maxRetries) {
+          lastError = error;
+          const delay = getRetryDelay(attempt, retryOptions);
+          console.warn(`API error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  // If we exhausted all retries, throw the last error
+  throw lastError || new APIError('Request failed after all retry attempts', 0, 'Max Retries Exceeded', endpoint, false);
+}
+
+// Health check
+export async function healthCheck(): Promise<{ status: string }> {
+  return fetchAPI('/health');
+}
+
+// Dashboard
+export async function getDashboard(): Promise<DashboardStats> {
+  return fetchAPI('/dashboard');
+}
+
+// Containers
+export async function getContainers(): Promise<Container[]> {
+  return fetchAPI('/containers');
+}
+
+export async function getContainer(vmid: number): Promise<Container> {
+  return fetchAPI(`/containers/${vmid}`);
+}
+
+export async function createContainer(data: CreateContainerRequest): Promise<{ vmid: number }> {
+  return fetchAPI('/containers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function startContainer(vmid: number): Promise<void> {
+  await fetchAPI(`/containers/${vmid}/start`, { method: 'POST' });
+}
+
+export async function stopContainer(vmid: number): Promise<void> {
+  await fetchAPI(`/containers/${vmid}/stop`, { method: 'POST' });
+}
+
+export async function rebootContainer(vmid: number): Promise<void> {
+  await fetchAPI(`/containers/${vmid}/reboot`, { method: 'POST' });
+}
+
+export async function deleteContainer(vmid: number): Promise<void> {
+  await fetchAPI(`/containers/${vmid}`, { method: 'DELETE' });
+}
+
+// Metrics
+export async function getMetrics(vmid: number, timeframe: string): Promise<MetricsData[]> {
+  return fetchAPI(`/metrics/${vmid}?timeframe=${timeframe}`);
+}
+
+// Templates
+export async function getTemplates(): Promise<Template[]> {
+  return fetchAPI('/templates');
+}

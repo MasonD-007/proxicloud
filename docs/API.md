@@ -953,6 +953,108 @@ print(f"Average CPU: {metrics['average']}%")
 
 ---
 
+## 📊 Analytics Endpoints
+
+### Get Container Metrics
+
+Retrieve time-series metrics for a container.
+
+**Endpoint:** `GET /api/containers/{vmid}/metrics`
+
+**Parameters:**
+- `hours` (optional): Time range in hours (default: 24)
+- `limit` (optional): Maximum number of data points (default: 1000)
+
+**Response:**
+```json
+[
+  {
+    "vmid": 100,
+    "timestamp": "2024-12-03T14:30:00Z",
+    "cpu_usage": 45.2,
+    "mem_usage": 1073741824,
+    "mem_total": 2147483648,
+    "disk_usage": 5368709120,
+    "disk_total": 10737418240,
+    "net_in": 1024000,
+    "net_out": 2048000,
+    "uptime": 86400,
+    "status": "running"
+  }
+]
+```
+
+**Example:**
+```bash
+curl http://localhost:8080/api/containers/100/metrics?hours=24&limit=100
+```
+
+---
+
+### Get Container Metrics Summary
+
+Get aggregated statistics for a container over a time range.
+
+**Endpoint:** `GET /api/containers/{vmid}/metrics/summary`
+
+**Parameters:**
+- `hours` (optional): Time range in hours (default: 24)
+
+**Response:**
+```json
+{
+  "vmid": 100,
+  "start_time": "2024-12-02T14:30:00Z",
+  "end_time": "2024-12-03T14:30:00Z",
+  "avg_cpu": 42.5,
+  "max_cpu": 87.3,
+  "avg_mem_usage": 65.2,
+  "max_mem_usage": 1610612736,
+  "avg_disk_usage": 52.1,
+  "total_net_in": 524288000,
+  "total_net_out": 1048576000,
+  "data_points": 2880
+}
+```
+
+**Example:**
+```bash
+curl http://localhost:8080/api/containers/100/metrics/summary?hours=24
+```
+
+---
+
+### Get Analytics Stats
+
+Get overall analytics system statistics.
+
+**Endpoint:** `GET /api/analytics/stats`
+
+**Response:**
+```json
+{
+  "total_metrics": 152640,
+  "enabled": true
+}
+```
+
+**Example:**
+```bash
+curl http://localhost:8080/api/analytics/stats
+```
+
+---
+
+## 📝 Notes on Analytics
+
+- **Collection Interval**: Metrics are collected every 30 seconds
+- **Retention**: Data is retained for 30 days by default
+- **Storage**: SQLite database stored at `/var/lib/proxicloud/analytics.db`
+- **Performance**: Indexed queries for fast retrieval
+- **Cleanup**: Automatic daily cleanup of old metrics
+
+---
+
 ## 📚 Related Documentation
 
 - [Installation Guide](INSTALLATION.md)

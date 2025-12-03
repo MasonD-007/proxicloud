@@ -1,0 +1,22 @@
+# Test Configuration for ProxiCloud
+# Copy to /etc/proxicloud/config.yaml on production
+
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+proxmox:
+  # Replace with your Proxmox host IP/hostname
+  host: "192.168.1.100"
+  
+  # Replace with your Proxmox node name
+  node: "pve"
+  
+  # Replace with your API token ID
+  token_id: "root@pam!proxicloud"
+  
+  # Replace with your API token secret
+  token_secret: "your-secret-here"
+  
+  # Set to true for self-signed certificates
+  insecure: true
