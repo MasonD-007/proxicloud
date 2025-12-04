@@ -92,8 +92,15 @@ if [ ! -f /etc/proxicloud/config.yaml ]; then
     echo "Please provide your Proxmox configuration details:"
     echo ""
     
-    # Prompt for Proxmox API URL
-    read -p "Proxmox API URL (e.g., https://192.168.1.100:8006): " PROXMOX_URL
+    # Prompt for Proxmox IP Address
+    read -p "Proxmox IP Address (e.g., 192.168.1.100): " PROXMOX_IP
+    
+    # Prompt for Proxmox Port (default: 8006)
+    read -p "Proxmox Port [8006]: " PROXMOX_PORT
+    PROXMOX_PORT=${PROXMOX_PORT:-8006}
+    
+    # Construct the full URL
+    PROXMOX_URL="https://${PROXMOX_IP}:${PROXMOX_PORT}"
     
     # Prompt for API Token ID
     read -p "API Token ID (e.g., root@pam!proxicloud): " TOKEN_ID
