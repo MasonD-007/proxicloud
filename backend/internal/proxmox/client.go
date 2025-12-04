@@ -63,7 +63,10 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 		reqBody = bytes.NewBuffer(jsonData)
 	}
 
-	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
+	fullURL := c.baseURL + path
+	fmt.Printf("[DEBUG] Proxmox API Request: %s %s\n", method, fullURL)
+
+	req, err := http.NewRequest(method, fullURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -73,6 +76,7 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		fmt.Printf("[ERROR] Proxmox API request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -82,7 +86,19 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
+	fmt.Printf("[DEBUG] Proxmox API Response: status=%d, body_length=%d bytes\n", resp.StatusCode, len(respBody))
+
+	// Log first 500 chars of response body for debugging
+	if len(respBody) > 0 {
+		preview := string(respBody)
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		fmt.Printf("[DEBUG] Response body preview: %s\n", preview)
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("[ERROR] Proxmox API error response: %s\n", string(respBody))
 		return nil, fmt.Errorf("proxmox API error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
@@ -92,6 +108,8 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 // GetContainers retrieves all LXC containers on the node
 func (c *Client) GetContainers() ([]Container, error) {
 	path := fmt.Sprintf("/nodes/%s/lxc", c.node)
+	fmt.Printf("[DEBUG] GetContainers: requesting path=%s\n", path)
+
 	respBody, err := c.doRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
@@ -101,7 +119,17 @@ func (c *Client) GetContainers() ([]Container, error) {
 		Data []Container `json:"data"`
 	}
 	if err := json.Unmarshal(respBody, &response); err != nil {
+		fmt.Printf("[ERROR] Failed to unmarshal containers response: %v\n", err)
+		fmt.Printf("[DEBUG] Raw response body: %s\n", string(respBody))
 		return nil, fmt.Errorf("failed to parse containers response: %w", err)
+	}
+
+	fmt.Printf("[INFO] GetContainers: parsed %d containers from Proxmox API\n", len(response.Data))
+
+	// Log details of each container for debugging
+	for i, container := range response.Data {
+		fmt.Printf("[DEBUG] Container %d: VMID=%d, Name=%s, Status=%s, CPU=%.2f, Mem=%d, MaxMem=%d\n",
+			i, container.VMID, container.Name, container.Status, container.CPU, container.Mem, container.MaxMem)
 	}
 
 	return response.Data, nil
@@ -186,28 +214,52 @@ func (c *Client) DeleteContainer(vmid int) error {
 
 // GetTemplates retrieves available container templates
 func (c *Client) GetTemplates() ([]Template, error) {
-	path := fmt.Sprintf("/nodes/%s/storage/local/content", c.node)
-	respBody, err := c.doRequest("GET", path, nil)
-	if err != nil {
-		return nil, err
-	}
+	// Try multiple storage locations based on user's storage configuration
+	storageLocations := []string{"local", "local-lvm"}
 
-	var response struct {
-		Data []Template `json:"data"`
-	}
-	if err := json.Unmarshal(respBody, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse templates response: %w", err)
-	}
+	var allTemplates []Template
 
-	// Filter for templates only
-	var templates []Template
-	for _, t := range response.Data {
-		if t.Content == "vztmpl" {
-			templates = append(templates, t)
+	for _, storage := range storageLocations {
+		path := fmt.Sprintf("/nodes/%s/storage/%s/content", c.node, storage)
+		fmt.Printf("[DEBUG] GetTemplates: requesting path=%s\n", path)
+
+		respBody, err := c.doRequest("GET", path, nil)
+		if err != nil {
+			fmt.Printf("[WARNING] Failed to get templates from storage '%s': %v\n", storage, err)
+			continue // Try next storage location
 		}
+
+		var response struct {
+			Data []Template `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			fmt.Printf("[ERROR] Failed to unmarshal templates response from '%s': %v\n", storage, err)
+			fmt.Printf("[DEBUG] Raw response body: %s\n", string(respBody))
+			continue
+		}
+
+		// Filter for templates only
+		storageTemplates := 0
+		for _, t := range response.Data {
+			if t.Content == "vztmpl" {
+				allTemplates = append(allTemplates, t)
+				storageTemplates++
+			}
+		}
+
+		fmt.Printf("[INFO] GetTemplates: found %d templates in storage '%s' (total items: %d)\n",
+			storageTemplates, storage, len(response.Data))
 	}
 
-	return templates, nil
+	fmt.Printf("[INFO] GetTemplates: returning %d total templates from all storage locations\n", len(allTemplates))
+
+	// Log details of each template for debugging
+	for i, tmpl := range allTemplates {
+		fmt.Printf("[DEBUG] Template %d: VolID=%s, Format=%s, Size=%d\n",
+			i, tmpl.VolID, tmpl.Format, tmpl.Size)
+	}
+
+	return allTemplates, nil
 }
 
 // GetNextVMID returns the next available VMID

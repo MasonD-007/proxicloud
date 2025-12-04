@@ -103,7 +103,7 @@ echo "Backend binary downloaded and installed."
 
 # Download diagnostic script
 echo "Downloading diagnostic script..."
-DIAGNOSE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/diagnose.sh"
+DIAGNOSE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/deploy/scripts/diagnose.sh"
 curl -fsSL -o $INSTALL_DIR/diagnose.sh "$DIAGNOSE_URL"
 
 if [ ! -f $INSTALL_DIR/diagnose.sh ]; then

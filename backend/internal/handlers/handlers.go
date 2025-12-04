@@ -116,25 +116,36 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 // ListContainers lists all containers
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] ListContainers handler called")
+
 	containers, err := h.client.GetContainers()
 	if err != nil {
+		log.Printf("[ERROR] GetContainers failed: %v", err)
 		// Try to get from cache if Proxmox is down
 		if h.cache != nil {
 			cached, cacheErr := h.cache.GetContainers()
 			if cacheErr == nil {
-				log.Printf("Serving containers from cache (Proxmox error: %v)", err)
+				log.Printf("[INFO] Serving containers from cache (Proxmox error: %v)", err)
 				respondJSONWithCache(w, http.StatusOK, cached, true)
 				return
 			}
+			log.Printf("[ERROR] Cache retrieval also failed: %v", cacheErr)
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	log.Printf("[INFO] Successfully retrieved %d containers from Proxmox", len(containers))
+	if len(containers) > 0 {
+		log.Printf("[DEBUG] Sample container data: %+v", containers[0])
+	} else {
+		log.Printf("[WARNING] Proxmox returned empty container list - this may indicate no containers exist or an API issue")
+	}
+
 	// Cache the containers
 	if h.cache != nil {
 		if err := h.cache.SetContainers(containers); err != nil {
-			log.Printf("Failed to cache containers: %v", err)
+			log.Printf("[ERROR] Failed to cache containers: %v", err)
 		}
 	}
 
@@ -268,25 +279,36 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 
 // GetTemplates lists available templates
 func (h *Handler) GetTemplates(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] GetTemplates handler called")
+
 	templates, err := h.client.GetTemplates()
 	if err != nil {
+		log.Printf("[ERROR] GetTemplates failed: %v", err)
 		// Try to get from cache if Proxmox is down
 		if h.cache != nil {
 			cached, cacheErr := h.cache.GetTemplates()
 			if cacheErr == nil {
-				log.Printf("Serving templates from cache (Proxmox error: %v)", err)
+				log.Printf("[INFO] Serving templates from cache (Proxmox error: %v)", err)
 				respondJSONWithCache(w, http.StatusOK, cached, true)
 				return
 			}
+			log.Printf("[ERROR] Cache retrieval also failed: %v", cacheErr)
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	log.Printf("[INFO] Successfully retrieved %d templates from Proxmox", len(templates))
+	if len(templates) > 0 {
+		log.Printf("[DEBUG] Sample template data: %+v", templates[0])
+	} else {
+		log.Printf("[WARNING] Proxmox returned empty template list - check storage configuration and permissions")
+	}
+
 	// Cache the templates
 	if h.cache != nil {
 		if err := h.cache.SetTemplates(templates); err != nil {
-			log.Printf("Failed to cache templates: %v", err)
+			log.Printf("[ERROR] Failed to cache templates: %v", err)
 		}
 	}
 

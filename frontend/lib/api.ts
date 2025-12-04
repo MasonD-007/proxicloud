@@ -217,7 +217,7 @@ export async function deleteContainer(vmid: number): Promise<void> {
 
 // Metrics
 export async function getMetrics(vmid: number, timeframe: string): Promise<MetricsData[]> {
-  return fetchAPI(`/metrics/${vmid}?timeframe=${timeframe}`);
+  return fetchAPI(`/containers/${vmid}/metrics?timeframe=${timeframe}`);
 }
 
 // Templates
