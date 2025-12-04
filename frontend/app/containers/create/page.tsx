@@ -30,9 +30,13 @@ export default function CreateContainerPage() {
     ssh_keys: '',
     start_on_boot: false,
     unprivileged: true,
+    ip_address: '',
+    gateway: '',
+    nameserver: '8.8.8.8',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [useDHCP, setUseDHCP] = useState(true);
 
   useEffect(() => {
     loadTemplates();
@@ -78,6 +82,23 @@ export default function CreateContainerPage() {
       newErrors.disk = 'Disk size must be between 1 GB and 10 TB';
     }
 
+    // Network validation (only if not using DHCP)
+    if (!useDHCP) {
+      if (!formData.ip_address) {
+        newErrors.ip_address = 'IP address is required when not using DHCP';
+      } else if (!/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(formData.ip_address)) {
+        newErrors.ip_address = 'IP address must be in CIDR format (e.g., 192.168.1.100/24)';
+      }
+      
+      if (formData.gateway && !/^(\d{1,3}\.){3}\d{1,3}$/.test(formData.gateway)) {
+        newErrors.gateway = 'Gateway must be a valid IP address (e.g., 192.168.1.1)';
+      }
+      
+      if (formData.nameserver && !/^(\d{1,3}\.){3}\d{1,3}$/.test(formData.nameserver)) {
+        newErrors.nameserver = 'Nameserver must be a valid IP address (e.g., 8.8.8.8)';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -92,7 +113,17 @@ export default function CreateContainerPage() {
     try {
       setLoading(true);
       setError(null);
-      const result = await createContainer(formData);
+      
+      // Prepare the request data
+      const requestData: CreateContainerRequest = {
+        ...formData,
+        // Clear network fields if using DHCP
+        ip_address: useDHCP ? undefined : formData.ip_address,
+        gateway: useDHCP ? undefined : formData.gateway,
+        nameserver: useDHCP ? undefined : formData.nameserver,
+      };
+      
+      const result = await createContainer(requestData);
       router.push(`/containers/${result.vmid}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create container');
@@ -303,6 +334,71 @@ export default function CreateContainerPage() {
                 </div>
               </div>
             </label>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-semibold text-text-primary mb-4">Network Configuration</h2>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useDHCP}
+                onChange={(e) => {
+                  setUseDHCP(e.target.checked);
+                  if (e.target.checked) {
+                    // Clear network fields when switching to DHCP
+                    handleInputChange('ip_address', '');
+                    handleInputChange('gateway', '');
+                  }
+                }}
+                className="w-4 h-4 text-primary bg-surface-elevated border-border rounded focus:ring-2 focus:ring-primary"
+              />
+              <div>
+                <div className="text-sm font-medium text-text-primary">Use DHCP</div>
+                <div className="text-sm text-text-muted">
+                  Automatically obtain IP address from DHCP server (recommended for most setups)
+                </div>
+              </div>
+            </label>
+
+            {!useDHCP && (
+              <div className="space-y-4 pl-7 border-l-2 border-primary/30">
+                <Input
+                  label="IP Address (CIDR)"
+                  placeholder="192.168.1.100/24"
+                  value={formData.ip_address || ''}
+                  onChange={(e) => handleInputChange('ip_address', e.target.value)}
+                  error={errors.ip_address}
+                  required={!useDHCP}
+                />
+                <p className="text-sm text-text-muted -mt-2">
+                  IP address in CIDR notation (e.g., 192.168.1.100/24)
+                </p>
+
+                <Input
+                  label="Gateway"
+                  placeholder="192.168.1.1"
+                  value={formData.gateway || ''}
+                  onChange={(e) => handleInputChange('gateway', e.target.value)}
+                  error={errors.gateway}
+                />
+                <p className="text-sm text-text-muted -mt-2">
+                  Default gateway IP address (optional)
+                </p>
+
+                <Input
+                  label="DNS Nameserver"
+                  placeholder="8.8.8.8"
+                  value={formData.nameserver || ''}
+                  onChange={(e) => handleInputChange('nameserver', e.target.value)}
+                  error={errors.nameserver}
+                />
+                <p className="text-sm text-text-muted -mt-2">
+                  DNS server IP address (defaults to 8.8.8.8 if not specified)
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 

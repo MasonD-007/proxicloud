@@ -229,3 +229,56 @@ export async function getMetricsSummary(vmid: number, hours: number): Promise<Me
 export async function getTemplates(): Promise<Template[]> {
   return fetchAPI('/templates');
 }
+
+export async function uploadTemplate(file: File, storage: string = 'local', onProgress?: (progress: number) => void): Promise<{ status: string; filename: string; storage: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('storage', storage);
+
+  // Use XMLHttpRequest for progress tracking
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    // Track upload progress
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          onProgress(percentComplete);
+        }
+      });
+    }
+
+    // Handle completion
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          resolve(response);
+        } catch {
+          reject(new APIError('Failed to parse upload response', xhr.status, xhr.statusText, '/templates/upload'));
+        }
+      } else {
+        reject(new APIError(
+          xhr.responseText || `Upload failed: ${xhr.statusText}`,
+          xhr.status,
+          xhr.statusText,
+          '/templates/upload'
+        ));
+      }
+    });
+
+    // Handle errors
+    xhr.addEventListener('error', () => {
+      reject(new APIError('Network error during upload', 0, 'Network Error', '/templates/upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new APIError('Upload aborted', 0, 'Aborted', '/templates/upload'));
+    });
+
+    // Send request
+    xhr.open('POST', `${API_URL}/templates/upload`);
+    xhr.send(formData);
+  });
+}

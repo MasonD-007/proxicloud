@@ -24,6 +24,10 @@ export interface CreateContainerRequest {
   ssh_keys?: string;
   start_on_boot?: boolean;
   unprivileged?: boolean;
+  // Network configuration
+  ip_address?: string; // IP address with CIDR notation (e.g., "192.168.1.100/24")
+  gateway?: string;    // Gateway IP address (e.g., "192.168.1.1")
+  nameserver?: string; // DNS nameserver (e.g., "8.8.8.8")
 }
 
 export interface DashboardStats {
