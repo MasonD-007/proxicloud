@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -196,6 +197,28 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 		"ostemplate": req.OSTemplate,
 	}
 
+	// Network configuration
+	// If IP address is provided, configure static IP
+	// Otherwise, use DHCP by default
+	if req.IPAddress != "" {
+		// Format: net0: name=eth0,bridge=vmbr0,ip=192.168.1.100/24,gw=192.168.1.1
+		netConfig := "name=eth0,bridge=vmbr0,firewall=1,ip=" + req.IPAddress
+
+		if req.Gateway != "" {
+			netConfig += ",gw=" + req.Gateway
+		}
+
+		params["net0"] = netConfig
+
+		// Set nameserver if provided
+		if req.Nameserver != "" {
+			params["nameserver"] = req.Nameserver
+		}
+	} else {
+		// Use DHCP if no IP specified
+		params["net0"] = "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp"
+	}
+
 	if req.Password != "" {
 		params["password"] = req.Password
 	}
@@ -334,4 +357,68 @@ func (c *Client) GetNextVMID() (int, error) {
 
 	fmt.Printf("[ERROR] Failed to parse nextid data as either int or string: %s\n", string(response.Data))
 	return 0, fmt.Errorf("failed to parse nextid data: expected int or string, got: %s", string(response.Data))
+}
+
+// UploadTemplate uploads a new container template to Proxmox storage
+func (c *Client) UploadTemplate(storage string, filename string, fileData []byte) error {
+	path := fmt.Sprintf("/nodes/%s/storage/%s/upload", c.node, storage)
+	fmt.Printf("[DEBUG] UploadTemplate: uploading to path=%s, filename=%s, size=%d bytes\n", path, filename, len(fileData))
+
+	// Create multipart form data
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+
+	// Add content type field
+	if err := writer.WriteField("content", "vztmpl"); err != nil {
+		return fmt.Errorf("failed to write content field: %w", err)
+	}
+
+	// Add the file
+	part, err := writer.CreateFormFile("filename", filename)
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+
+	if _, err := part.Write(fileData); err != nil {
+		return fmt.Errorf("failed to write file data: %w", err)
+	}
+
+	contentType := writer.FormDataContentType()
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	// Make the request with custom content type
+	fullURL := c.baseURL + path
+	fmt.Printf("[DEBUG] Proxmox API Upload Request: POST %s\n", fullURL)
+
+	req, err := http.NewRequest("POST", fullURL, &requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret))
+	req.Header.Set("Content-Type", contentType)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		fmt.Printf("[ERROR] Proxmox API upload request failed: %v\n", err)
+		return fmt.Errorf("failed to execute upload request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read upload response: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] Proxmox API Upload Response: status=%d, body_length=%d bytes\n", resp.StatusCode, len(respBody))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("[ERROR] Proxmox API upload error response: %s\n", string(respBody))
+		return fmt.Errorf("proxmox API upload error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	fmt.Printf("[INFO] Template uploaded successfully: %s\n", filename)
+	return nil
 }

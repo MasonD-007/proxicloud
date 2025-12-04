@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MasonD-007/proxicloud/backend/internal/analytics"
@@ -334,6 +336,72 @@ func (h *Handler) GetTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSONWithCache(w, http.StatusOK, templates, false)
+}
+
+// UploadTemplate uploads a new container template
+func (h *Handler) UploadTemplate(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] UploadTemplate handler called")
+
+	// Parse multipart form (max 5GB)
+	if err := r.ParseMultipartForm(5 << 30); err != nil {
+		log.Printf("[ERROR] Failed to parse multipart form: %v", err)
+		respondError(w, http.StatusBadRequest, "failed to parse upload form")
+		return
+	}
+
+	// Get the file from the form
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		log.Printf("[ERROR] Failed to get file from form: %v", err)
+		respondError(w, http.StatusBadRequest, "file field is required")
+		return
+	}
+	defer file.Close()
+
+	// Get storage parameter (default to "local")
+	storage := r.FormValue("storage")
+	if storage == "" {
+		storage = "local"
+	}
+
+	log.Printf("[INFO] Uploading template: filename=%s, size=%d bytes, storage=%s", header.Filename, header.Size, storage)
+
+	// Validate file extension
+	filename := header.Filename
+	validExtensions := []string{".tar.gz", ".tar.xz", ".tar.zst", ".tar.bz2", ".tgz"}
+	valid := false
+	for _, ext := range validExtensions {
+		if strings.HasSuffix(strings.ToLower(filename), ext) {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		respondError(w, http.StatusBadRequest, "invalid file format. Must be .tar.gz, .tar.xz, .tar.zst, .tar.bz2, or .tgz")
+		return
+	}
+
+	// Read file data
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		log.Printf("[ERROR] Failed to read file data: %v", err)
+		respondError(w, http.StatusInternalServerError, "failed to read file data")
+		return
+	}
+
+	// Upload to Proxmox
+	if err := h.client.UploadTemplate(storage, filename, fileData); err != nil {
+		log.Printf("[ERROR] Failed to upload template: %v", err)
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	log.Printf("[INFO] Template uploaded successfully: %s", filename)
+	respondJSON(w, http.StatusOK, map[string]string{
+		"status":   "success",
+		"filename": filename,
+		"storage":  storage,
+	})
 }
 
 // GetContainerMetrics returns time-series metrics for a container

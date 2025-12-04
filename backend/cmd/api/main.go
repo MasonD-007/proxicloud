@@ -99,6 +99,7 @@ func main() {
 	api.HandleFunc("/containers/{vmid}/stop", h.StopContainer).Methods("POST")
 	api.HandleFunc("/containers/{vmid}/reboot", h.RebootContainer).Methods("POST")
 	api.HandleFunc("/templates", h.GetTemplates).Methods("GET")
+	api.HandleFunc("/templates/upload", h.UploadTemplate).Methods("POST")
 
 	// Analytics routes
 	api.HandleFunc("/analytics/stats", h.GetAnalyticsStats).Methods("GET")

@@ -30,6 +30,10 @@ type CreateContainerRequest struct {
 	SSHKeys      string `json:"ssh_keys,omitempty"`
 	StartOnBoot  bool   `json:"start_on_boot,omitempty"`
 	Unprivileged bool   `json:"unprivileged,omitempty"`
+	// Network configuration
+	IPAddress  string `json:"ip_address,omitempty"` // IP address with CIDR notation (e.g., "192.168.1.100/24")
+	Gateway    string `json:"gateway,omitempty"`    // Gateway IP address (e.g., "192.168.1.1")
+	Nameserver string `json:"nameserver,omitempty"` // DNS nameserver (e.g., "8.8.8.8")
 }
 
 // Template represents a container template
