@@ -36,7 +36,17 @@ Builds ProxiCloud for multiple platforms:
 - Node.js 18+
 - Build tools (gcc for CGO)
 
-### 2. `setup-token.sh`
+### 2. `diagnose.sh`
+**System diagnostics and troubleshooting tool**
+
+Checks ProxiCloud installation and configuration for issues.
+
+**Usage:**
+```bash
+./deploy/scripts/diagnose.sh
+```
+
+### 3. `setup-token.sh`
 **Interactive Proxmox API token configuration helper**
 
 Guides users through creating and configuring Proxmox API tokens.
@@ -69,7 +79,57 @@ Guides users through creating and configuring Proxmox API tokens.
   - Cache and analytics settings
   - Default container settings
 
-### 3. `uninstall.sh`
+### 3. `dev.sh`
+**Development server for debugging without binaries**
+
+Runs ProxiCloud directly from source code on your Proxmox node for testing and debugging.
+
+**Usage:**
+```bash
+./deploy/scripts/dev.sh
+```
+
+**Features:**
+- Runs backend with `go run` (no compilation needed)
+- Runs frontend with `npm run dev` (hot reload enabled)
+- Shows all errors and stack traces in real-time
+- Live reload on file changes
+- Uses temporary data directories by default
+- Graceful shutdown with Ctrl+C
+- Process monitoring and auto-cleanup
+
+**Requirements:**
+- Go 1.21+
+- Node.js 18+
+- Configuration file (config.yaml)
+
+**Environment Variables:**
+- `CONFIG_FILE` - Path to config file (default: ./config.test.yaml)
+- `CACHE_PATH` - Cache database location (default: /tmp/proxicloud-dev/cache.db)
+- `ANALYTICS_PATH` - Analytics database location (default: /tmp/proxicloud-dev/analytics.db)
+- `BACKEND_PORT` - Backend port (default: 8080)
+- `FRONTEND_PORT` - Frontend port (default: 3000)
+
+**Example:**
+```bash
+# Basic usage
+./deploy/scripts/dev.sh
+
+# Custom config and ports
+CONFIG_FILE=/etc/proxicloud/config.yaml FRONTEND_PORT=4000 ./deploy/scripts/dev.sh
+
+# For help
+./deploy/scripts/dev.sh --help
+```
+
+**Benefits:**
+- See compile errors immediately
+- Debug with full stack traces
+- Test changes without rebuilding binaries
+- Hot reload speeds up development
+- No need to restart services manually
+
+### 4. `uninstall.sh`
 **Clean removal script with optional data preservation**
 
 Safely removes ProxiCloud from the system.
@@ -164,6 +224,8 @@ deploy/
 │   └── config.example.yaml      # Configuration template
 ├── scripts/
 │   ├── build-binaries.sh        # Multi-arch build script
+│   ├── dev.sh                   # Development server (no binaries)
+│   ├── diagnose.sh              # Diagnostics tool
 │   ├── setup-token.sh           # Token setup helper
 │   └── uninstall.sh             # Uninstall script
 ├── systemd/
@@ -230,10 +292,12 @@ sudo rm -rf /opt/proxicloud /var/lib/proxicloud /etc/proxicloud
 ## Best Practices
 
 ### For Development
-1. Use `build-binaries.sh` for release builds
-2. Test on multiple architectures before release
-3. Verify SHA256 checksums match
-4. Tag releases with semantic versioning
+1. Use `dev.sh` for local development and debugging
+2. Use `build-binaries.sh` for release builds
+3. Test on multiple architectures before release
+4. Verify SHA256 checksums match
+5. Tag releases with semantic versioning
+6. Run `diagnose.sh` to check for issues before committing
 
 ### For Deployment
 1. Always use `setup-token.sh` for initial configuration
