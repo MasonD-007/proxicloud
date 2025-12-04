@@ -20,6 +20,7 @@ export default function CreateContainerPage() {
 
   // Form state
   const [formData, setFormData] = useState<CreateContainerRequest>({
+    vmid: undefined, // Optional VMID
     hostname: '',
     cores: 2,
     memory: 1024,
@@ -63,6 +64,9 @@ export default function CreateContainerPage() {
     }
     if (!formData.ostemplate) {
       newErrors.ostemplate = 'Please select an OS template';
+    }
+    if (formData.vmid !== undefined && (formData.vmid < 100 || formData.vmid > 999999999)) {
+      newErrors.vmid = 'VMID must be between 100 and 999999999';
     }
     if (formData.cores < 1 || formData.cores > 128) {
       newErrors.cores = 'CPU cores must be between 1 and 128';
@@ -138,6 +142,20 @@ export default function CreateContainerPage() {
         <Card>
           <h2 className="text-xl font-semibold text-text-primary mb-4">Basic Configuration</h2>
           <div className="space-y-4">
+            <Input
+              label="Container ID (VMID)"
+              placeholder="Leave empty for auto-assign"
+              type="number"
+              min="100"
+              max="999999999"
+              value={formData.vmid || ''}
+              onChange={(e) => handleInputChange('vmid', e.target.value ? parseInt(e.target.value) : undefined)}
+              error={errors.vmid}
+            />
+            <p className="text-sm text-text-muted -mt-2">
+              Optional: Specify a custom container ID (100-999999999), or leave empty to auto-assign
+            </p>
+
             <Input
               label="Hostname"
               placeholder="my-container"

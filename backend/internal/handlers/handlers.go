@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -194,11 +195,31 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get next available VMID
-	vmid, err := h.client.GetNextVMID()
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+	var vmid int
+	var err error
+
+	// Check if user provided a custom VMID
+	if req.VMID != nil && *req.VMID > 0 {
+		vmid = *req.VMID
+		log.Printf("[INFO] Using user-specified VMID: %d", vmid)
+
+		// Verify the VMID is not already in use
+		_, err := h.client.GetContainer(vmid)
+		if err == nil {
+			// Container exists with this VMID
+			respondError(w, http.StatusConflict, fmt.Sprintf("VMID %d is already in use", vmid))
+			return
+		}
+		// If error is not nil, the VMID is likely available (or there's another issue)
+		// We'll let Proxmox handle the final validation
+	} else {
+		// Get next available VMID
+		vmid, err = h.client.GetNextVMID()
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		log.Printf("[INFO] Using auto-generated VMID: %d", vmid)
 	}
 
 	if err := h.client.CreateContainer(vmid, req); err != nil {

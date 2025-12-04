@@ -14,6 +14,7 @@ export interface Container {
 }
 
 export interface CreateContainerRequest {
+  vmid?: number; // Optional: user can specify their own VMID
   hostname: string;
   cores: number;
   memory: number;

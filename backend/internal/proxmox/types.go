@@ -20,6 +20,7 @@ type Container struct {
 
 // CreateContainerRequest holds parameters for creating a new container
 type CreateContainerRequest struct {
+	VMID         *int   `json:"vmid,omitempty"` // Optional: user can specify VMID
 	Hostname     string `json:"hostname"`
 	Cores        int    `json:"cores"`
 	Memory       int    `json:"memory"`

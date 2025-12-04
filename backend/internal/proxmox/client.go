@@ -55,12 +55,39 @@ func NewClient(host, node, tokenID, tokenSecret string, insecure bool) *Client {
 // doRequest performs an HTTP request to the Proxmox API
 func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error) {
 	var reqBody io.Reader
+	var contentType string
+
 	if body != nil {
-		jsonData, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		if method == "POST" || method == "PUT" {
+			// Proxmox API expects application/x-www-form-urlencoded for POST/PUT
+			jsonData, err := json.Marshal(body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal request body: %w", err)
+			}
+
+			var bodyMap map[string]interface{}
+			if err := json.Unmarshal(jsonData, &bodyMap); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
+			}
+
+			// Convert to form values
+			values := make([]string, 0, len(bodyMap))
+			for k, v := range bodyMap {
+				values = append(values, fmt.Sprintf("%s=%v", k, v))
+			}
+			formData := strings.Join(values, "&")
+			fmt.Printf("[DEBUG] Form data: %s\n", formData)
+			reqBody = strings.NewReader(formData)
+			contentType = "application/x-www-form-urlencoded"
+		} else {
+			// For GET/DELETE, use JSON if body present
+			jsonData, err := json.Marshal(body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal request body: %w", err)
+			}
+			reqBody = bytes.NewBuffer(jsonData)
+			contentType = "application/json"
 		}
-		reqBody = bytes.NewBuffer(jsonData)
 	}
 
 	fullURL := c.baseURL + path
@@ -72,7 +99,9 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret))
-	req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -270,12 +299,39 @@ func (c *Client) GetNextVMID() (int, error) {
 		return 0, err
 	}
 
+	fmt.Printf("[DEBUG] GetNextVMID raw response: %s\n", string(respBody))
+
+	// Proxmox can return the nextid as either a string or an int
+	// Use json.RawMessage to handle both cases
 	var response struct {
-		Data int `json:"data"`
+		Data json.RawMessage `json:"data"`
 	}
+
 	if err := json.Unmarshal(respBody, &response); err != nil {
+		fmt.Printf("[ERROR] Failed to parse nextid response structure: %v\n", err)
 		return 0, fmt.Errorf("failed to parse nextid response: %w", err)
 	}
 
-	return response.Data, nil
+	// Try to unmarshal as int first
+	var vmidInt int
+	if err := json.Unmarshal(response.Data, &vmidInt); err == nil {
+		fmt.Printf("[DEBUG] Successfully parsed nextid as int: %d\n", vmidInt)
+		return vmidInt, nil
+	}
+
+	// Try to unmarshal as string
+	var vmidStr string
+	if err := json.Unmarshal(response.Data, &vmidStr); err == nil {
+		// Convert string to int
+		var vmid int
+		if _, err := fmt.Sscanf(vmidStr, "%d", &vmid); err == nil {
+			fmt.Printf("[DEBUG] Successfully parsed nextid as string and converted: %d\n", vmid)
+			return vmid, nil
+		}
+		fmt.Printf("[ERROR] Failed to convert string '%s' to int\n", vmidStr)
+		return 0, fmt.Errorf("failed to convert nextid string to int: %s", vmidStr)
+	}
+
+	fmt.Printf("[ERROR] Failed to parse nextid data as either int or string: %s\n", string(response.Data))
+	return 0, fmt.Errorf("failed to parse nextid data: expected int or string, got: %s", string(response.Data))
 }
