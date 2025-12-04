@@ -200,8 +200,11 @@ SyslogIdentifier=proxicloud-api
 WantedBy=multi-user.target
 SERVICE
 
+# Get node IP for API URL
+NODE_IP=$(hostname -I | awk '{print $1}')
+
 # Create frontend service (with correct API dependency)
-cat > /etc/systemd/system/proxicloud-frontend.service << 'SERVICE'
+cat > /etc/systemd/system/proxicloud-frontend.service << SERVICE
 [Unit]
 Description=ProxiCloud Frontend Server
 Documentation=https://github.com/MasonD-007/proxicloud
@@ -223,7 +226,7 @@ WorkingDirectory=/opt/proxicloud/frontend
 # Environment variables
 Environment="NODE_ENV=production"
 Environment="PORT=3000"
-Environment="NEXT_PUBLIC_API_URL=http://localhost:8080/api"
+Environment="NEXT_PUBLIC_API_URL=http://${NODE_IP}:8080/api"
 
 # Restart policy
 Restart=on-failure
@@ -253,9 +256,6 @@ systemctl enable proxicloud-frontend
 echo "Starting services..."
 systemctl start proxicloud-api
 systemctl start proxicloud-frontend
-
-# Get node IP
-NODE_IP=$(hostname -I | awk '{print $1}')
 
 echo ""
 echo "==================================="
