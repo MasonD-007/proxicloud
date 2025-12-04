@@ -190,9 +190,11 @@ func (a *Analytics) GetMetrics(vmid int, start, end time.Time, limit int) ([]Met
 	var metrics []Metric
 	for rows.Next() {
 		var m Metric
+		var timestampStr string
+
 		err := rows.Scan(
 			&m.VMID,
-			&m.Timestamp,
+			&timestampStr,
 			&m.CPUUsage,
 			&m.MemUsage,
 			&m.MemTotal,
@@ -207,6 +209,18 @@ func (a *Analytics) GetMetrics(vmid int, start, end time.Time, limit int) ([]Met
 			log.Printf("Failed to scan metric: %v", err)
 			continue
 		}
+
+		// Parse timestamp
+		m.Timestamp, err = time.Parse(time.RFC3339, timestampStr)
+		if err != nil {
+			// Try alternative format
+			m.Timestamp, err = time.Parse("2006-01-02 15:04:05", timestampStr)
+			if err != nil {
+				log.Printf("Warning: Failed to parse timestamp '%s': %v", timestampStr, err)
+				continue
+			}
+		}
+
 		metrics = append(metrics, m)
 	}
 
@@ -224,9 +238,11 @@ func (a *Analytics) GetLatestMetric(vmid int) (*Metric, error) {
 	`
 
 	var m Metric
+	var timestampStr string
+
 	err := a.db.QueryRow(query, vmid).Scan(
 		&m.VMID,
-		&m.Timestamp,
+		&timestampStr,
 		&m.CPUUsage,
 		&m.MemUsage,
 		&m.MemTotal,
@@ -242,6 +258,17 @@ func (a *Analytics) GetLatestMetric(vmid int) (*Metric, error) {
 			return nil, fmt.Errorf("no metrics found for VMID %d", vmid)
 		}
 		return nil, err
+	}
+
+	// Parse timestamp
+	m.Timestamp, err = time.Parse(time.RFC3339, timestampStr)
+	if err != nil {
+		// Try alternative format
+		m.Timestamp, err = time.Parse("2006-01-02 15:04:05", timestampStr)
+		if err != nil {
+			log.Printf("Warning: Failed to parse timestamp '%s': %v", timestampStr, err)
+			m.Timestamp = time.Now()
+		}
 	}
 
 	return &m, nil
@@ -268,10 +295,12 @@ func (a *Analytics) GetMetricsSummary(vmid int, start, end time.Time) (*MetricSu
 	`
 
 	var summary MetricSummary
+	var startTimeStr, endTimeStr string
+
 	err := a.db.QueryRow(query, vmid, start, end).Scan(
 		&summary.VMID,
-		&summary.StartTime,
-		&summary.EndTime,
+		&startTimeStr,
+		&endTimeStr,
 		&summary.AvgCPU,
 		&summary.MaxCPU,
 		&summary.AvgMemUsage,
@@ -286,6 +315,28 @@ func (a *Analytics) GetMetricsSummary(vmid int, start, end time.Time) (*MetricSu
 			return nil, fmt.Errorf("no metrics found for VMID %d in time range", vmid)
 		}
 		return nil, err
+	}
+
+	// Parse timestamp strings into time.Time
+	// SQLite stores timestamps in RFC3339 format
+	summary.StartTime, err = time.Parse(time.RFC3339, startTimeStr)
+	if err != nil {
+		// Try alternative formats
+		summary.StartTime, err = time.Parse("2006-01-02 15:04:05", startTimeStr)
+		if err != nil {
+			log.Printf("Warning: Failed to parse start_time '%s': %v", startTimeStr, err)
+			summary.StartTime = start
+		}
+	}
+
+	summary.EndTime, err = time.Parse(time.RFC3339, endTimeStr)
+	if err != nil {
+		// Try alternative formats
+		summary.EndTime, err = time.Parse("2006-01-02 15:04:05", endTimeStr)
+		if err != nil {
+			log.Printf("Warning: Failed to parse end_time '%s': %v", endTimeStr, err)
+			summary.EndTime = end
+		}
 	}
 
 	return &summary, nil
@@ -313,9 +364,11 @@ func (a *Analytics) GetAllContainerMetrics() (map[int]*Metric, error) {
 	metrics := make(map[int]*Metric)
 	for rows.Next() {
 		var m Metric
+		var timestampStr string
+
 		err := rows.Scan(
 			&m.VMID,
-			&m.Timestamp,
+			&timestampStr,
 			&m.CPUUsage,
 			&m.MemUsage,
 			&m.MemTotal,
@@ -330,6 +383,18 @@ func (a *Analytics) GetAllContainerMetrics() (map[int]*Metric, error) {
 			log.Printf("Failed to scan metric: %v", err)
 			continue
 		}
+
+		// Parse timestamp
+		m.Timestamp, err = time.Parse(time.RFC3339, timestampStr)
+		if err != nil {
+			// Try alternative format
+			m.Timestamp, err = time.Parse("2006-01-02 15:04:05", timestampStr)
+			if err != nil {
+				log.Printf("Warning: Failed to parse timestamp '%s': %v", timestampStr, err)
+				continue
+			}
+		}
+
 		metrics[m.VMID] = &m
 	}
 

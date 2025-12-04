@@ -14,9 +14,9 @@ type ServerConfig struct {
 
 // ProxmoxConfig holds Proxmox API configuration
 type ProxmoxConfig struct {
-	Host     string `yaml:"host"`
-	Node     string `yaml:"node"`
-	TokenID  string `yaml:"token_id"`
+	Host        string `yaml:"host"`
+	Node        string `yaml:"node"`
+	TokenID     string `yaml:"token_id"`
 	TokenSecret string `yaml:"token_secret"`
-	Insecure bool   `yaml:"insecure"`
+	Insecure    bool   `yaml:"insecure"`
 }
