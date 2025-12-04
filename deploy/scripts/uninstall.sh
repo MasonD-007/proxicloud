@@ -195,6 +195,64 @@ if id "proxicloud" &>/dev/null; then
     fi
 fi
 
+# Remove Go and Node.js (optional)
+echo ""
+print_warning "Development Dependencies Removal"
+echo ""
+echo "ProxiCloud installed Go and Node.js as dependencies."
+echo ""
+print_warning "Removing these will affect other applications that may use them!"
+echo ""
+
+read -p "Do you want to remove Go? (yes/no): " REMOVE_GO
+
+if [ "$REMOVE_GO" = "yes" ]; then
+    print_info "Removing Go..."
+    
+    if [ -d "/usr/local/go" ]; then
+        rm -rf /usr/local/go
+        print_success "Removed Go installation from /usr/local/go"
+    fi
+    
+    # Remove Go path from /etc/profile
+    if grep -q "/usr/local/go/bin" /etc/profile 2>/dev/null; then
+        sed -i '/\/usr\/local\/go\/bin/d' /etc/profile
+        print_success "Removed Go from PATH in /etc/profile"
+    fi
+    
+    print_success "Go removed"
+else
+    print_info "Go preserved"
+fi
+
+echo ""
+read -p "Do you want to remove Node.js? (yes/no): " REMOVE_NODE
+
+if [ "$REMOVE_NODE" = "yes" ]; then
+    print_info "Removing Node.js..."
+    
+    # Remove Node.js and npm
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get remove -y nodejs npm 2>/dev/null || true
+        apt-get autoremove -y 2>/dev/null || true
+        print_success "Removed Node.js and npm"
+    fi
+    
+    # Remove NodeSource repository
+    if [ -f "/etc/apt/sources.list.d/nodesource.list" ]; then
+        rm -f /etc/apt/sources.list.d/nodesource.list
+        print_success "Removed NodeSource repository"
+    fi
+    
+    # Remove Node.js related directories
+    rm -rf /usr/lib/node_modules 2>/dev/null || true
+    rm -rf /usr/local/lib/node_modules 2>/dev/null || true
+    
+    print_success "Node.js removed"
+else
+    print_info "Node.js preserved"
+fi
+
 # Final cleanup
 print_info "Performing final cleanup..."
 
