@@ -180,20 +180,83 @@ fi
 
 # Install systemd services
 echo "Installing systemd services..."
-cp ../deploy/systemd/proxicloud-frontend.service /etc/systemd/system/
-cat > /etc/systemd/system/proxicloud-backend.service << 'SERVICE'
+
+# Create API service
+cat > /etc/systemd/system/proxicloud-api.service << 'SERVICE'
 [Unit]
-Description=ProxiCloud Backend API
-After=network.target
+Description=ProxiCloud API Server
+Documentation=https://github.com/MasonD-007/proxicloud
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/proxicloud/backend
+Group=root
+
+# Path to the ProxiCloud API binary
 ExecStart=/opt/proxicloud/backend/proxicloud-api
-Restart=always
-RestartSec=10
+
+# Working directory
+WorkingDirectory=/opt/proxicloud/backend
+
+# Configuration file location
 Environment="CONFIG_PATH=/etc/proxicloud/config.yaml"
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxicloud-api
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+# Create frontend service (with correct API dependency)
+cat > /etc/systemd/system/proxicloud-frontend.service << 'SERVICE'
+[Unit]
+Description=ProxiCloud Frontend Server
+Documentation=https://github.com/MasonD-007/proxicloud
+After=network-online.target proxicloud-api.service
+Wants=network-online.target
+Requires=proxicloud-api.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Path to Node.js and the Next.js server
+ExecStart=/usr/bin/npm start
+
+# Working directory (where package.json is located)
+WorkingDirectory=/opt/proxicloud/frontend
+
+# Environment variables
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+Environment="NEXT_PUBLIC_API_URL=http://localhost:8080/api"
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxicloud-frontend
 
 [Install]
 WantedBy=multi-user.target
@@ -204,11 +267,11 @@ systemctl daemon-reload
 
 # Enable and start services
 echo "Enabling services..."
-systemctl enable proxicloud-backend
+systemctl enable proxicloud-api
 systemctl enable proxicloud-frontend
 
 echo "Starting services..."
-systemctl start proxicloud-backend
+systemctl start proxicloud-api
 systemctl start proxicloud-frontend
 
 # Get node IP
@@ -226,11 +289,11 @@ echo "Frontend UI: http://$NODE_IP:3000"
 echo ""
 echo "Next steps:"
 echo "1. Edit /etc/proxicloud/config.yaml with your Proxmox credentials"
-echo "2. Restart services: systemctl restart proxicloud-backend"
+echo "2. Restart services: systemctl restart proxicloud-api"
 echo "3. Access the UI at http://$NODE_IP:3000"
 echo ""
 echo "Service management:"
-echo "  - Check status: systemctl status proxicloud-backend proxicloud-frontend"
-echo "  - View logs: journalctl -u proxicloud-backend -f"
-echo "  - Stop: systemctl stop proxicloud-backend proxicloud-frontend"
+echo "  - Check status: systemctl status proxicloud-api proxicloud-frontend"
+echo "  - View logs: journalctl -u proxicloud-api -f"
+echo "  - Stop: systemctl stop proxicloud-api proxicloud-frontend"
 echo ""
