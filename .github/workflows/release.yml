@@ -78,13 +78,16 @@ jobs:
       - name: Package frontend
         run: |
           cd frontend
+          # Copy static files to standalone output
+          cp -r .next/static .next/standalone/.next/
+          # Copy public folder if it exists and is not empty
+          if [ -d "public" ] && [ "$(ls -A public)" ]; then
+            cp -r public .next/standalone/
+          fi
           # Package standalone build with all required files
           tar -czf ../dist/proxicloud-frontend.tar.gz \
-            .next/standalone/ \
-            .next/static/ \
-            public/ \
-            package.json \
-            next.config.js
+            -C .next/standalone \
+            .
       
       # Generate checksums
       - name: Generate checksums

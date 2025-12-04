@@ -125,29 +125,11 @@ fi
 
 # Extract frontend
 echo "Extracting frontend..."
-tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend --strip-components=0
+tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend
 rm /tmp/proxicloud-frontend.tar.gz
 
 # Get node IP for API URL
 NODE_IP=$(hostname -I | awk '{print $1}')
-
-# Setup standalone server structure
-echo "Setting up Next.js standalone server..."
-if [ -d "$INSTALL_DIR/frontend/.next/standalone" ]; then
-    # Copy standalone server to root
-    cp -r $INSTALL_DIR/frontend/.next/standalone/* $INSTALL_DIR/frontend/
-    
-    # Copy static files to the correct location for standalone
-    mkdir -p $INSTALL_DIR/frontend/.next/static
-    if [ -d "$INSTALL_DIR/frontend/.next/static" ]; then
-        cp -r $INSTALL_DIR/frontend/.next/static $INSTALL_DIR/frontend/.next/
-    fi
-    
-    # Copy public folder if it exists
-    if [ -d "$INSTALL_DIR/frontend/public" ]; then
-        mkdir -p $INSTALL_DIR/frontend/public
-    fi
-fi
 
 echo "Frontend setup complete."
 echo ""
