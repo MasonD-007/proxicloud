@@ -9,84 +9,114 @@ echo "ProxiCloud Installer"
 echo "==================================="
 echo ""
 
+# Configuration
+GITHUB_REPO="MasonD-007/proxicloud"
+INSTALL_DIR="/opt/proxicloud"
+CONFIG_DIR="/etc/proxicloud"
+DATA_DIR="/var/lib/proxicloud"
+LOG_DIR="/var/log/proxicloud"
+
 # Check if running on Proxmox
 if [ ! -f /etc/pve/.version ]; then
     echo "Error: This script must be run on a Proxmox VE node"
     exit 1
 fi
 
-# Install git if missing
-if ! command -v git >/dev/null 2>&1; then
-    echo "Git not found. Installing Git..."
-    apt-get update
-    apt-get install -y git
-    echo "Git installed successfully: $(git --version)"
-else
-    echo "Git is already installed: $(git --version)"
-fi
+# Detect architecture
+ARCH=$(uname -m)
+case $ARCH in
+    x86_64)
+        BINARY_ARCH="amd64"
+        ;;
+    aarch64|arm64)
+        BINARY_ARCH="arm64"
+        ;;
+    *)
+        echo "Error: Unsupported architecture: $ARCH"
+        echo "Supported architectures: x86_64 (amd64), aarch64/arm64"
+        exit 1
+        ;;
+esac
 
-# Install Go if missing
-if ! command -v go >/dev/null 2>&1; then
-    echo "Go not found. Installing Go..."
-    GO_VERSION="1.22.6"
-    cd /usr/local
-    wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
-    rm -rf /usr/local/go
-    tar -xzf go${GO_VERSION}.linux-amd64.tar.gz
-    rm go${GO_VERSION}.linux-amd64.tar.gz
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
-    export PATH=$PATH:/usr/local/go/bin
-    echo "Go installed successfully: $(go version)"
-else
-    echo "Go is already installed: $(go version)"
-fi
+echo "Detected architecture: $ARCH ($BINARY_ARCH)"
 
-# Install Node.js if missing
+# Install required runtime dependencies
+echo "Installing runtime dependencies..."
+apt-get update -qq
+
+# Install Node.js if missing (needed for frontend)
 if ! command -v node >/dev/null 2>&1; then
-    echo "Node.js not found. Installing Node.js 20..."
+    echo "Installing Node.js 20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
-    echo "Node.js installed successfully: $(node -v)"
+    echo "Node.js installed: $(node -v)"
 else
-    echo "Node.js is already installed: $(node -v)"
+    echo "Node.js already installed: $(node -v)"
 fi
 
-echo "Prerequisites check complete."
+# Install curl and tar (usually present, but just in case)
+apt-get install -y curl tar
 
-# Create installation directory
-INSTALL_DIR="/opt/proxicloud"
-echo "Creating installation directory: $INSTALL_DIR"
-mkdir -p $INSTALL_DIR
-cd $INSTALL_DIR
+echo "Dependencies installed successfully."
+echo ""
 
-# Clone repository (or download release in production)
-echo "Downloading ProxiCloud..."
-if [ -d ".git" ]; then
-    echo "Repository already exists, pulling latest changes..."
-    git pull
-else
-    git clone https://github.com/MasonD-007/proxicloud.git .
+# Get the latest release version
+echo "Fetching latest release information..."
+LATEST_RELEASE=$(curl -s https://api.github.com/repos/$GITHUB_REPO/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST_RELEASE" ]; then
+    echo "Error: Could not fetch latest release information"
+    echo "Please check your internet connection or try again later"
+    exit 1
 fi
 
-# Build backend
-echo "Building backend..."
-cd backend
-go build -o proxicloud-api cmd/api/main.go
-chmod +x proxicloud-api
+echo "Latest release: $LATEST_RELEASE"
+echo ""
 
-# Build frontend
-echo "Building frontend..."
-cd ../frontend
-npm install
-npm run build
+# Create installation directories
+echo "Creating installation directories..."
+mkdir -p $INSTALL_DIR/{backend,frontend}
+mkdir -p $CONFIG_DIR
+mkdir -p $DATA_DIR
+mkdir -p $LOG_DIR
 
-# Create config and data directories
-echo "Setting up configuration..."
-mkdir -p /etc/proxicloud
-mkdir -p /var/lib/proxicloud
-mkdir -p /var/log/proxicloud
-if [ ! -f /etc/proxicloud/config.yaml ]; then
-    echo ""
+# Download backend binary
+echo "Downloading backend binary (linux-${BINARY_ARCH})..."
+BACKEND_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_RELEASE/proxicloud-api-linux-${BINARY_ARCH}"
+curl -fsSL -o $INSTALL_DIR/backend/proxicloud-api "$BACKEND_URL"
+
+if [ ! -f $INSTALL_DIR/backend/proxicloud-api ]; then
+    echo "Error: Failed to download backend binary"
+    exit 1
+fi
+
+chmod +x $INSTALL_DIR/backend/proxicloud-api
+echo "Backend binary downloaded and installed."
+
+# Download frontend package
+echo "Downloading frontend package..."
+FRONTEND_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_RELEASE/proxicloud-frontend.tar.gz"
+curl -fsSL -o /tmp/proxicloud-frontend.tar.gz "$FRONTEND_URL"
+
+if [ ! -f /tmp/proxicloud-frontend.tar.gz ]; then
+    echo "Error: Failed to download frontend package"
+    exit 1
+fi
+
+# Extract frontend
+echo "Extracting frontend..."
+tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend
+rm /tmp/proxicloud-frontend.tar.gz
+
+# Install frontend dependencies (production only)
+echo "Installing frontend dependencies..."
+cd $INSTALL_DIR/frontend
+npm ci --omit=dev --silent
+echo "Frontend installed successfully."
+echo ""
+
+# Create configuration if it doesn't exist
+if [ ! -f $CONFIG_DIR/config.yaml ]; then
     echo "==================================="
     echo "Configuration Setup"
     echo "==================================="
@@ -127,15 +157,8 @@ if [ ! -f /etc/proxicloud/config.yaml ]; then
     read -p "API Server Port [8080]: " API_PORT
     API_PORT=${API_PORT:-8080}
     
-    # Prompt for Frontend settings
-    read -p "Frontend Host [0.0.0.0]: " FRONTEND_HOST
-    FRONTEND_HOST=${FRONTEND_HOST:-0.0.0.0}
-    
-    read -p "Frontend Port [3000]: " FRONTEND_PORT
-    FRONTEND_PORT=${FRONTEND_PORT:-3000}
-    
     # Create configuration file with user input
-    cat > /etc/proxicloud/config.yaml << EOF
+    cat > $CONFIG_DIR/config.yaml << EOF
 # ProxiCloud Configuration File
 # Generated by installer on $(date)
 
@@ -154,9 +177,15 @@ proxmox:
 EOF
     
     echo ""
-    echo "Configuration file created at: /etc/proxicloud/config.yaml"
+    echo "Configuration file created at: $CONFIG_DIR/config.yaml"
+    echo ""
+else
+    echo "Configuration file already exists at: $CONFIG_DIR/config.yaml"
     echo ""
 fi
+
+# Get node IP for API URL
+NODE_IP=$(hostname -I | awk '{print $1}')
 
 # Install systemd services
 echo "Installing systemd services..."
@@ -200,10 +229,7 @@ SyslogIdentifier=proxicloud-api
 WantedBy=multi-user.target
 SERVICE
 
-# Get node IP for API URL
-NODE_IP=$(hostname -I | awk '{print $1}')
-
-# Create frontend service (with correct API dependency)
+# Create frontend service
 cat > /etc/systemd/system/proxicloud-frontend.service << SERVICE
 [Unit]
 Description=ProxiCloud Frontend Server
@@ -262,18 +288,23 @@ echo "==================================="
 echo "Installation Complete!"
 echo "==================================="
 echo ""
-echo "ProxiCloud is now running!"
+echo "ProxiCloud $LATEST_RELEASE is now running!"
 echo ""
-echo "Backend API: http://$NODE_IP:8080"
-echo "Frontend UI: http://$NODE_IP:3000"
+echo "Access URLs:"
+echo "  Frontend: http://$NODE_IP:3000"
+echo "  Backend:  http://$NODE_IP:8080/api"
 echo ""
-echo "Next steps:"
-echo "1. Edit /etc/proxicloud/config.yaml with your Proxmox credentials"
-echo "2. Restart services: systemctl restart proxicloud-api"
-echo "3. Access the UI at http://$NODE_IP:3000"
+echo "Service Management:"
+echo "  Status:  systemctl status proxicloud-api proxicloud-frontend"
+echo "  Logs:    journalctl -u proxicloud-api -f"
+echo "  Restart: systemctl restart proxicloud-api proxicloud-frontend"
+echo "  Stop:    systemctl stop proxicloud-api proxicloud-frontend"
 echo ""
-echo "Service management:"
-echo "  - Check status: systemctl status proxicloud-api proxicloud-frontend"
-echo "  - View logs: journalctl -u proxicloud-api -f"
-echo "  - Stop: systemctl stop proxicloud-api proxicloud-frontend"
+echo "Configuration:"
+echo "  Config:  $CONFIG_DIR/config.yaml"
+echo "  Data:    $DATA_DIR"
+echo "  Logs:    $LOG_DIR"
+echo ""
+echo "Documentation:"
+echo "  https://github.com/$GITHUB_REPO/blob/main/docs/"
 echo ""

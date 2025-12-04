@@ -36,12 +36,19 @@ jobs:
       - name: Create dist directory
         run: mkdir -p dist
       
+      # Install build dependencies for CGO (needed for SQLite)
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      
       # Build backend for multiple platforms
       - name: Build backend (linux-amd64)
         working-directory: ./backend
         env:
           GOOS: linux
           GOARCH: amd64
+          CGO_ENABLED: 1
         run: |
           go build -v -o ../dist/proxicloud-api-linux-amd64 \
             -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
@@ -52,6 +59,8 @@ jobs:
         env:
           GOOS: linux
           GOARCH: arm64
+          CGO_ENABLED: 1
+          CC: aarch64-linux-gnu-gcc
         run: |
           go build -v -o ../dist/proxicloud-api-linux-arm64 \
             -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }}" \
