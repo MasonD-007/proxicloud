@@ -1,6 +1,20 @@
 import { Container, CreateContainerRequest, DashboardStats, MetricsData, Template } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// Support runtime API URL configuration
+// In standalone mode, this will be available at window location
+const getAPIUrl = (): string => {
+  // Check if we're in browser
+  if (typeof window !== 'undefined') {
+    // Use relative path when deployed (backend should be on same host)
+    // This makes it work regardless of the host IP
+    return `${window.location.protocol}//${window.location.hostname}:8080/api`;
+  }
+  
+  // Server-side: use environment variable or default
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+};
+
+const API_URL = getAPIUrl();
 
 // Global state for cache status
 let isUsingCache = false;

@@ -71,19 +71,20 @@ jobs:
         working-directory: ./frontend
         run: npm ci
       
-      - name: Build frontend
+      - name: Build frontend (standalone mode)
         working-directory: ./frontend
         run: npm run build
       
       - name: Package frontend
         run: |
           cd frontend
+          # Package standalone build with all required files
           tar -czf ../dist/proxicloud-frontend.tar.gz \
-            .next/ \
+            .next/standalone/ \
+            .next/static/ \
+            public/ \
             package.json \
-            package-lock.json \
-            next.config.js \
-            tsconfig.json
+            next.config.js
       
       # Generate checksums
       - name: Generate checksums

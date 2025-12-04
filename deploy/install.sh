@@ -51,7 +51,15 @@ if ! command -v node >/dev/null 2>&1; then
     apt-get install -y nodejs
     echo "Node.js installed: $(node -v)"
 else
-    echo "Node.js already installed: $(node -v)"
+    NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$NODE_VERSION" -lt 18 ]; then
+        echo "Node.js version too old ($(node -v)). Upgrading to Node.js 20..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y nodejs
+        echo "Node.js upgraded: $(node -v)"
+    else
+        echo "Node.js already installed: $(node -v)"
+    fi
 fi
 
 # Install curl and tar (usually present, but just in case)
@@ -117,20 +125,31 @@ fi
 
 # Extract frontend
 echo "Extracting frontend..."
-tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend
+tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend --strip-components=0
 rm /tmp/proxicloud-frontend.tar.gz
 
-# Get node IP for API URL (needed before building frontend)
+# Get node IP for API URL
 NODE_IP=$(hostname -I | awk '{print $1}')
 
-# Install frontend dependencies and build with correct API URL
-echo "Installing frontend dependencies..."
-cd $INSTALL_DIR/frontend
-npm ci --silent
+# Setup standalone server structure
+echo "Setting up Next.js standalone server..."
+if [ -d "$INSTALL_DIR/frontend/.next/standalone" ]; then
+    # Copy standalone server to root
+    cp -r $INSTALL_DIR/frontend/.next/standalone/* $INSTALL_DIR/frontend/
+    
+    # Copy static files to the correct location for standalone
+    mkdir -p $INSTALL_DIR/frontend/.next/static
+    if [ -d "$INSTALL_DIR/frontend/.next/static" ]; then
+        cp -r $INSTALL_DIR/frontend/.next/static $INSTALL_DIR/frontend/.next/
+    fi
+    
+    # Copy public folder if it exists
+    if [ -d "$INSTALL_DIR/frontend/public" ]; then
+        mkdir -p $INSTALL_DIR/frontend/public
+    fi
+fi
 
-echo "Building frontend with API URL: http://${NODE_IP}:8080/api"
-NEXT_PUBLIC_API_URL="http://${NODE_IP}:8080/api" npm run build
-echo "Frontend built successfully."
+echo "Frontend setup complete."
 echo ""
 
 # Create configuration if it doesn't exist
@@ -258,16 +277,16 @@ Type=simple
 User=root
 Group=root
 
-# Path to Node.js and the Next.js server
-ExecStart=/usr/bin/npm start
+# Path to Node.js and the Next.js standalone server
+ExecStart=/usr/bin/node server.js
 
-# Working directory (where package.json is located)
+# Working directory (where server.js is located)
 WorkingDirectory=/opt/proxicloud/frontend
 
 # Environment variables
 Environment="NODE_ENV=production"
 Environment="PORT=3000"
-Environment="NEXT_PUBLIC_API_URL=http://${NODE_IP}:8080/api"
+Environment="HOSTNAME=0.0.0.0"
 
 # Restart policy
 Restart=on-failure
