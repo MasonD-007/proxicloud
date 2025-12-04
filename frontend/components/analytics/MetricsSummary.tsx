@@ -3,20 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Card from '../ui/Card';
 import { getMetricsSummary } from '@/lib/api';
-
-interface MetricsSummary {
-  vmid: number;
-  start_time: string;
-  end_time: string;
-  avg_cpu: number;
-  max_cpu: number;
-  avg_mem_usage: number;
-  max_mem_usage: number;
-  avg_disk_usage: number;
-  total_net_in: number;
-  total_net_out: number;
-  data_points: number;
-}
+import type { MetricsSummary } from '@/lib/types';
 
 interface MetricsSummaryProps {
   vmid: number;

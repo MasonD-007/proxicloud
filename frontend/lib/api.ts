@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, Template } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -220,7 +220,7 @@ export async function getMetrics(vmid: number, timeframe: string): Promise<Metri
   return fetchAPI(`/containers/${vmid}/metrics?timeframe=${timeframe}`);
 }
 
-export async function getMetricsSummary(vmid: number, hours: number): Promise<any> {
+export async function getMetricsSummary(vmid: number, hours: number): Promise<MetricsSummary> {
   return fetchAPI(`/containers/${vmid}/metrics/summary?hours=${hours}`);
 }
 
