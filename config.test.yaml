@@ -1,13 +1,15 @@
 # Test Configuration for ProxiCloud
 # Copy to /etc/proxicloud/config.yaml on production
 
+# API Server Configuration
 server:
   port: 8080
   host: "0.0.0.0"
 
+# Proxmox Configuration
 proxmox:
-  # Replace with your Proxmox host IP/hostname
-  host: "192.168.1.100"
+  # Replace with your Proxmox host URL (include https:// and port)
+  host: "https://192.168.1.100:8006"
   
   # Replace with your Proxmox node name
   node: "pve"
