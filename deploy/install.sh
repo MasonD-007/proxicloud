@@ -15,6 +15,16 @@ if [ ! -f /etc/pve/.version ]; then
     exit 1
 fi
 
+# Install git if missing
+if ! command -v git >/dev/null 2>&1; then
+    echo "Git not found. Installing Git..."
+    apt-get update
+    apt-get install -y git
+    echo "Git installed successfully: $(git --version)"
+else
+    echo "Git is already installed: $(git --version)"
+fi
+
 # Install Go if missing
 if ! command -v go >/dev/null 2>&1; then
     echo "Go not found. Installing Go..."
