@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -25,8 +26,22 @@ func NewClient(host, node, tokenID, tokenSecret string, insecure bool) *Client {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
 	}
 
+	// Normalize the host URL
+	// Remove any trailing slashes
+	host = strings.TrimRight(host, "/")
+
+	// Check if host already contains protocol and port
+	var baseURL string
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		// Host is already a full URL, use as-is
+		baseURL = fmt.Sprintf("%s/api2/json", host)
+	} else {
+		// Host is just hostname/IP, add protocol and port
+		baseURL = fmt.Sprintf("https://%s:8006/api2/json", host)
+	}
+
 	return &Client{
-		baseURL:     fmt.Sprintf("https://%s:8006/api2/json", host),
+		baseURL:     baseURL,
 		node:        node,
 		tokenID:     tokenID,
 		tokenSecret: tokenSecret,

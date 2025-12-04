@@ -143,15 +143,12 @@ if [ ! -f $CONFIG_DIR/config.yaml ]; then
     echo "Please provide your Proxmox configuration details:"
     echo ""
     
-    # Prompt for Proxmox IP Address
-    read -p "Proxmox IP Address (e.g., 192.168.1.100): " PROXMOX_IP
-    
-    # Prompt for Proxmox Port (default: 8006)
-    read -p "Proxmox Port [8006]: " PROXMOX_PORT
-    PROXMOX_PORT=${PROXMOX_PORT:-8006}
-    
-    # Construct the full URL
-    PROXMOX_URL="https://${PROXMOX_IP}:${PROXMOX_PORT}"
+    # Prompt for Proxmox Host (can be IP, hostname, or full URL)
+    echo "Proxmox Host Configuration:"
+    echo "  - Enter IP address (e.g., 192.168.1.100)"
+    echo "  - Enter hostname (e.g., pve.local)"
+    echo "  - Or full URL (e.g., https://192.168.1.100:8006)"
+    read -p "Proxmox Host: " PROXMOX_HOST
     
     # Prompt for Proxmox Node Name
     read -p "Proxmox Node Name [$(hostname)]: " NODE_NAME
@@ -188,7 +185,7 @@ server:
 
 # Proxmox Configuration
 proxmox:
-  host: "$PROXMOX_URL"
+  host: "$PROXMOX_HOST"
   node: "$NODE_NAME"
   token_id: "$TOKEN_ID"
   token_secret: "$TOKEN_SECRET"

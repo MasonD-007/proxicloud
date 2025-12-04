@@ -8,8 +8,12 @@ server:
 
 # Proxmox Configuration
 proxmox:
-  # Your Proxmox host URL (e.g., https://192.168.1.100:8006)
-  host: "https://192.168.1.100:8006"
+  # Your Proxmox host - can be:
+  #   - IP address: "192.168.1.100"
+  #   - Hostname: "pve.local"
+  #   - Full URL: "https://192.168.1.100:8006"
+  # If you provide just IP/hostname, https:// and port 8006 will be added automatically
+  host: "192.168.1.100"
   
   # The Proxmox node name (e.g., pve)
   node: "pve"
