@@ -195,37 +195,54 @@ if id "proxicloud" &>/dev/null; then
     fi
 fi
 
-# Remove Go and Node.js (optional)
-echo ""
-print_warning "Development Dependencies Removal"
-echo ""
-echo "ProxiCloud installed Go and Node.js as dependencies."
-echo ""
-print_warning "Removing these will affect other applications that may use them!"
-echo ""
-
-read -p "Do you want to remove Go? (yes/no): " REMOVE_GO
-
-if [ "$REMOVE_GO" = "yes" ]; then
-    print_info "Removing Go..."
-    
-    if [ -d "/usr/local/go" ]; then
-        rm -rf /usr/local/go
-        print_success "Removed Go installation from /usr/local/go"
-    fi
-    
-    # Remove Go path from /etc/profile
-    if grep -q "/usr/local/go/bin" /etc/profile 2>/dev/null; then
-        sed -i '/\/usr\/local\/go\/bin/d' /etc/profile
-        print_success "Removed Go from PATH in /etc/profile"
-    fi
-    
-    print_success "Go removed"
-else
-    print_info "Go preserved"
+# Check for legacy installation (with Go)
+LEGACY_INSTALL=false
+if [ -d "/usr/local/go" ] && grep -q "/usr/local/go/bin" /etc/profile 2>/dev/null; then
+    LEGACY_INSTALL=true
 fi
 
+# Remove dependencies (optional)
+if [ "$LEGACY_INSTALL" = true ]; then
+    echo ""
+    print_warning "Legacy Installation Detected"
+    echo ""
+    echo "This appears to be a legacy installation that included Go."
+    echo "The new installation method no longer requires Go."
+    echo ""
+    print_warning "Removing these will affect other applications that may use them!"
+    echo ""
+    
+    read -p "Do you want to remove Go? (yes/no): " REMOVE_GO
+    
+    if [ "$REMOVE_GO" = "yes" ]; then
+        print_info "Removing Go..."
+        
+        if [ -d "/usr/local/go" ]; then
+            rm -rf /usr/local/go
+            print_success "Removed Go installation from /usr/local/go"
+        fi
+        
+        # Remove Go path from /etc/profile
+        if grep -q "/usr/local/go/bin" /etc/profile 2>/dev/null; then
+            sed -i '/\/usr\/local\/go\/bin/d' /etc/profile
+            print_success "Removed Go from PATH in /etc/profile"
+        fi
+        
+        print_success "Go removed"
+    else
+        print_info "Go preserved"
+    fi
+fi
+
+# Ask about Node.js removal
 echo ""
+print_warning "Node.js Runtime"
+echo ""
+echo "ProxiCloud requires Node.js to run the frontend."
+echo ""
+print_warning "Removing Node.js will affect other applications that may use it!"
+echo ""
+
 read -p "Do you want to remove Node.js? (yes/no): " REMOVE_NODE
 
 if [ "$REMOVE_NODE" = "yes" ]; then

@@ -93,6 +93,18 @@ fi
 chmod +x $INSTALL_DIR/backend/proxicloud-api
 echo "Backend binary downloaded and installed."
 
+# Download diagnostic script
+echo "Downloading diagnostic script..."
+DIAGNOSE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/diagnose.sh"
+curl -fsSL -o $INSTALL_DIR/diagnose.sh "$DIAGNOSE_URL"
+
+if [ ! -f $INSTALL_DIR/diagnose.sh ]; then
+    echo "Warning: Failed to download diagnostic script (non-critical)"
+else
+    chmod +x $INSTALL_DIR/diagnose.sh
+    echo "Diagnostic script downloaded."
+fi
+
 # Download frontend package
 echo "Downloading frontend package..."
 FRONTEND_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_RELEASE/proxicloud-frontend.tar.gz"
@@ -108,11 +120,17 @@ echo "Extracting frontend..."
 tar -xzf /tmp/proxicloud-frontend.tar.gz -C $INSTALL_DIR/frontend
 rm /tmp/proxicloud-frontend.tar.gz
 
-# Install frontend dependencies (production only)
+# Get node IP for API URL (needed before building frontend)
+NODE_IP=$(hostname -I | awk '{print $1}')
+
+# Install frontend dependencies and build with correct API URL
 echo "Installing frontend dependencies..."
 cd $INSTALL_DIR/frontend
-npm ci --omit=dev --silent
-echo "Frontend installed successfully."
+npm ci --silent
+
+echo "Building frontend with API URL: http://${NODE_IP}:8080/api"
+NEXT_PUBLIC_API_URL="http://${NODE_IP}:8080/api" npm run build
+echo "Frontend built successfully."
 echo ""
 
 # Create configuration if it doesn't exist
@@ -183,9 +201,6 @@ else
     echo "Configuration file already exists at: $CONFIG_DIR/config.yaml"
     echo ""
 fi
-
-# Get node IP for API URL
-NODE_IP=$(hostname -I | awk '{print $1}')
 
 # Install systemd services
 echo "Installing systemd services..."
@@ -299,6 +314,9 @@ echo "  Status:  systemctl status proxicloud-api proxicloud-frontend"
 echo "  Logs:    journalctl -u proxicloud-api -f"
 echo "  Restart: systemctl restart proxicloud-api proxicloud-frontend"
 echo "  Stop:    systemctl stop proxicloud-api proxicloud-frontend"
+echo ""
+echo "Diagnostics:"
+echo "  Run:     $INSTALL_DIR/diagnose.sh"
 echo ""
 echo "Configuration:"
 echo "  Config:  $CONFIG_DIR/config.yaml"
