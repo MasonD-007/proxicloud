@@ -71,7 +71,6 @@ jobs:
           cd frontend
           tar -czf ../dist/proxicloud-frontend.tar.gz \
             .next/ \
-            public/ \
             package.json \
             package-lock.json \
             next.config.js \
