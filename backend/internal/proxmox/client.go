@@ -47,7 +47,7 @@ func NewClient(host, node, tokenID, tokenSecret string, insecure bool) *Client {
 		tokenSecret: tokenSecret,
 		httpClient: &http.Client{
 			Transport: tr,
-			Timeout:   30 * time.Second,
+			Timeout:   60 * time.Second, // Increased from 30s to 60s for slower networks
 		},
 	}
 }

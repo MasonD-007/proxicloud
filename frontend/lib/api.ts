@@ -98,6 +98,7 @@ async function fetchAPI<T>(
           'Content-Type': 'application/json',
           ...options?.headers,
         },
+        signal: AbortSignal.timeout(60000), // 60 second timeout for slow networks
         ...options,
       });
 

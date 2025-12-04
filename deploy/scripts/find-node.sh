@@ -28,9 +28,30 @@ echo ""
 
 # Get parameters
 read -p "Enter Proxmox host (e.g., 192.168.10.69): " HOST
+
+# Validate host is not empty
+if [ -z "$HOST" ]; then
+    print_error "Host cannot be empty"
+    exit 1
+fi
+
 read -p "Enter token ID (e.g., root@pam!proxicloud): " TOKEN_ID
+
+# Validate token ID is not empty
+if [ -z "$TOKEN_ID" ]; then
+    print_error "Token ID cannot be empty"
+    exit 1
+fi
+
 read -sp "Enter token secret: " TOKEN_SECRET
 echo ""
+
+# Validate token secret is not empty
+if [ -z "$TOKEN_SECRET" ]; then
+    print_error "Token secret cannot be empty"
+    exit 1
+fi
+
 read -p "Skip SSL verification? (y/n): " SKIP_SSL
 
 # Setup curl options
