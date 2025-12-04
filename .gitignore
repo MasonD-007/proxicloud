@@ -6,7 +6,7 @@
 *.dylib
 /api
 /backend/api
-proxicloud-api*
+proxicloud-api
 
 # Test binaries
 *.test

@@ -1,0 +1,39 @@
+[Unit]
+Description=ProxiCloud API Server
+Documentation=https://github.com/MasonD-007/proxicloud
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Path to the ProxiCloud API binary
+ExecStart=/opt/proxicloud/api
+
+# Working directory
+WorkingDirectory=/opt/proxicloud
+
+# Configuration file location
+Environment="PROXICLOUD_CONFIG=/etc/proxicloud/config.yaml"
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits (optional, adjust as needed)
+# LimitNOFILE=65536
+# MemoryLimit=512M
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxicloud-api
+
+[Install]
+WantedBy=multi-user.target
