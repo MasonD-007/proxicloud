@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Card from '../ui/Card';
+import { getMetricsSummary } from '@/lib/api';
 
 interface MetricsSummary {
   vmid: number;
@@ -31,19 +32,13 @@ export function MetricsSummary({ vmid, hours = 24 }: MetricsSummaryProps) {
     const fetchSummary = async () => {
       try {
         setLoading(true);
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'}/containers/${vmid}/metrics/summary?hours=${hours}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch metrics summary');
-        }
-        
-        const data = await response.json();
+        const data = await getMetricsSummary(vmid, hours);
         setSummary(data);
         setError(null);
       } catch (err) {
+        console.error('Failed to fetch metrics summary:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
+        setSummary(null);
       } finally {
         setLoading(false);
       }

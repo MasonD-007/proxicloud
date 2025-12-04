@@ -220,6 +220,10 @@ export async function getMetrics(vmid: number, timeframe: string): Promise<Metri
   return fetchAPI(`/containers/${vmid}/metrics?timeframe=${timeframe}`);
 }
 
+export async function getMetricsSummary(vmid: number, hours: number): Promise<any> {
+  return fetchAPI(`/containers/${vmid}/metrics/summary?hours=${hours}`);
+}
+
 // Templates
 export async function getTemplates(): Promise<Template[]> {
   return fetchAPI('/templates');
