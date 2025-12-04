@@ -15,10 +15,33 @@ if [ ! -f /etc/pve/.version ]; then
     exit 1
 fi
 
-# Check for required tools
-echo "Checking prerequisites..."
-command -v go >/dev/null 2>&1 || { echo "Error: Go is not installed. Please install Go 1.21+"; exit 1; }
-command -v node >/dev/null 2>&1 || { echo "Error: Node.js is not installed. Please install Node.js 18+"; exit 1; }
+# Install Go if missing
+if ! command -v go >/dev/null 2>&1; then
+    echo "Go not found. Installing Go..."
+    GO_VERSION="1.22.6"
+    cd /usr/local
+    wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
+    rm -rf /usr/local/go
+    tar -xzf go${GO_VERSION}.linux-amd64.tar.gz
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+    export PATH=$PATH:/usr/local/go/bin
+    echo "Go installed successfully: $(go version)"
+else
+    echo "Go is already installed: $(go version)"
+fi
+
+# Install Node.js if missing
+if ! command -v node >/dev/null 2>&1; then
+    echo "Node.js not found. Installing Node.js 20..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+    echo "Node.js installed successfully: $(node -v)"
+else
+    echo "Node.js is already installed: $(node -v)"
+fi
+
+echo "Prerequisites check complete."
 
 # Create installation directory
 INSTALL_DIR="/opt/proxicloud"
@@ -52,8 +75,24 @@ echo "Setting up configuration..."
 mkdir -p /etc/proxicloud
 if [ ! -f /etc/proxicloud/config.yaml ]; then
     cp ../deploy/config/config.example.yaml /etc/proxicloud/config.yaml
-    echo "Configuration file created at /etc/proxicloud/config.yaml"
-    echo "Please edit this file with your Proxmox credentials"
+    echo ""
+    echo "==================================="
+    echo "Configuration Required"
+    echo "==================================="
+    echo ""
+    echo "A configuration file has been created at:"
+    echo "  /etc/proxicloud/config.yaml"
+    echo ""
+    echo "You MUST edit this file with your Proxmox credentials before continuing."
+    echo ""
+    echo "Required settings:"
+    echo "  - Proxmox API URL"
+    echo "  - API Token ID and Secret"
+    echo "  - Server host and port settings"
+    echo ""
+    read -p "Press ENTER after you have edited the configuration file..."
+    echo ""
+    echo "Continuing with installation..."
 fi
 
 # Install systemd services
