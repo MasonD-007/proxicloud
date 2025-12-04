@@ -1,0 +1,40 @@
+# Configuration for PR labeler
+# Automatically adds labels to PRs based on changed files
+
+'backend':
+  - changed-files:
+    - any-glob-to-any-file: 'backend/**/*'
+
+'frontend':
+  - changed-files:
+    - any-glob-to-any-file: 'frontend/**/*'
+
+'documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**/*'
+      - '*.md'
+      - 'README.md'
+      - 'CHANGELOG.md'
+
+'deployment':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'deploy/**/*'
+      - '.github/workflows/**/*'
+
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'backend/go.mod'
+      - 'backend/go.sum'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+
+'configuration':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'deploy/config/**/*'
+      - '*.yaml'
+      - '*.yml'
+      - '.gitignore'

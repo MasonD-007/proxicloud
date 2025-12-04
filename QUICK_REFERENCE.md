@@ -242,12 +242,75 @@ open http://localhost:3000
 
 ---
 
+## 🚀 Releases & GitHub Features
+
+### Create a Release
+
+```bash
+# 1. Update changelog
+vim CHANGELOG.md
+
+# 2. Commit changes
+git add CHANGELOG.md
+git commit -m "docs: Update changelog for v1.0.0"
+git push origin main
+
+# 3. Create and push tag (triggers release workflow)
+git tag -a v1.0.0 -m "Release v1.0.0 - Initial stable release"
+git push origin v1.0.0
+```
+
+### GitHub CLI Commands
+
+```bash
+# Issues
+gh issue create --title "Bug: ..." --body "..."
+gh issue list
+gh issue view 123
+
+# Pull Requests
+gh pr create --fill
+gh pr list
+gh pr checkout 123
+gh pr review 123 --approve
+
+# Releases
+gh release list
+gh release view v1.0.0
+gh release download v1.0.0
+
+# Workflows
+gh workflow list
+gh run list
+gh run watch
+```
+
+### Commit Message Format
+
+```bash
+feat: Add new feature          # New feature
+fix: Fix bug                   # Bug fix
+docs: Update docs              # Documentation
+style: Format code             # Code style
+refactor: Refactor code        # Code restructuring
+perf: Improve performance      # Performance improvement
+test: Add tests                # Testing
+build: Update dependencies     # Build changes
+ci: Update workflows           # CI/CD changes
+chore: Update config           # Maintenance tasks
+```
+
+**For detailed release instructions, see [RELEASE_GUIDE.md](RELEASE_GUIDE.md)**
+
+---
+
 ## 🔗 Useful Links
 
 - **Proxmox API Docs**: https://pve.proxmox.com/pve-docs/api-viewer/
 - **Go Docs**: https://go.dev/doc/
 - **Next.js Docs**: https://nextjs.org/docs
 - **Tailwind Docs**: https://tailwindcss.com/docs
+- **GitHub CLI**: https://cli.github.com/
 
 ---
 
