@@ -43,24 +43,24 @@ dev: ## Run in development mode with hot reload (requires air)
 	fi
 
 run: ## Run the application
-	$(GOCMD) run $(MAIN_PATH)
+	CGO_ENABLED=1 $(GOCMD) run $(MAIN_PATH)
 
 build: ## Build the binary for current platform
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
+	CGO_ENABLED=1 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
 	@echo "Binary built: $(BUILD_DIR)/$(BINARY_NAME)"
 
 build-linux: ## Build for Linux (amd64)
 	@echo "Building for Linux (amd64)..."
 	@mkdir -p $(DIST_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/proxicloud-api-linux-amd64 $(MAIN_PATH)
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/proxicloud-api-linux-amd64 $(MAIN_PATH)
 	@echo "Binary built: $(DIST_DIR)/proxicloud-api-linux-amd64"
 
 build-linux-arm: ## Build for Linux (arm64)
 	@echo "Building for Linux (arm64)..."
 	@mkdir -p $(DIST_DIR)
-	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/proxicloud-api-linux-arm64 $(MAIN_PATH)
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/proxicloud-api-linux-arm64 $(MAIN_PATH)
 	@echo "Binary built: $(DIST_DIR)/proxicloud-api-linux-arm64"
 
 build-all: build-linux build-linux-arm ## Build for all platforms

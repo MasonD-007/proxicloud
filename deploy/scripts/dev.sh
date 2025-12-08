@@ -197,16 +197,18 @@ start_backend() {
     export CONFIG_PATH="$CONFIG_FILE"
     export CACHE_PATH="$CACHE_PATH"
     export ANALYTICS_PATH="$ANALYTICS_PATH"
+    export CGO_ENABLED=1
     
     print_debug "CONFIG_PATH=$CONFIG_PATH"
     print_debug "CACHE_PATH=$CACHE_PATH"
     print_debug "ANALYTICS_PATH=$ANALYTICS_PATH"
+    print_debug "CGO_ENABLED=$CGO_ENABLED"
     
     # Run backend with go run (shows all errors and allows live reload)
     echo ""
     echo -e "${BLUE}========== BACKEND OUTPUT ==========${NC}"
     
-    go run cmd/api/main.go &
+    CGO_ENABLED=1 go run cmd/api/main.go &
     BACKEND_PID=$!
     
     # Wait a moment to check if it started successfully
