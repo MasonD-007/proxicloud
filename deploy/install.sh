@@ -44,6 +44,15 @@ echo "Detected architecture: $ARCH ($BINARY_ARCH)"
 echo "Installing runtime dependencies..."
 apt-get update -qq
 
+# Install build-essential (required for Go SQLite driver with CGO)
+if ! command -v gcc >/dev/null 2>&1; then
+    echo "Installing build tools (required for database support)..."
+    apt-get install -y build-essential
+    echo "Build tools installed: $(gcc --version | head -n1)"
+else
+    echo "Build tools already installed: $(gcc --version | head -n1)"
+fi
+
 # Install Node.js if missing (needed for frontend)
 if ! command -v node >/dev/null 2>&1; then
     echo "Installing Node.js 20..."

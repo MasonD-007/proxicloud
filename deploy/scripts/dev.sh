@@ -82,6 +82,23 @@ check_prerequisites() {
         print_status "Found Go: $GO_VERSION"
     fi
     
+    # Check GCC (required for SQLite CGO)
+    if ! command -v gcc &> /dev/null; then
+        print_error "GCC not found - required for SQLite support"
+        echo ""
+        echo "SQLite requires a C compiler (GCC) to work."
+        echo ""
+        echo "To install on Proxmox/Debian:"
+        echo "  apt-get update"
+        echo "  apt-get install -y build-essential"
+        echo ""
+        echo "After installing, run this script again."
+        exit 1
+    else
+        GCC_VERSION=$(gcc --version | head -n1)
+        print_status "Found GCC: $GCC_VERSION"
+    fi
+    
     # Check Node.js
     if ! command -v node &> /dev/null; then
         missing_deps+=("Node.js")
