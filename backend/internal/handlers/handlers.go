@@ -504,3 +504,290 @@ func (h *Handler) GetAnalyticsStats(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, stats)
 }
+
+// ListVolumes lists all persistent volumes
+func (h *Handler) ListVolumes(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] ListVolumes handler called")
+
+	volumes, err := h.client.GetVolumes()
+	if err != nil {
+		log.Printf("[ERROR] GetVolumes failed: %v", err)
+		// Try to get from cache if Proxmox is down
+		if h.cache != nil {
+			cached, cacheErr := h.cache.GetVolumes()
+			if cacheErr == nil {
+				log.Printf("[INFO] Serving volumes from cache (Proxmox error: %v)", err)
+				respondJSONWithCache(w, http.StatusOK, cached, true)
+				return
+			}
+			log.Printf("[ERROR] Cache retrieval also failed: %v", cacheErr)
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	log.Printf("[INFO] Successfully retrieved %d volumes from Proxmox", len(volumes))
+
+	// Cache the volumes
+	if h.cache != nil {
+		if err := h.cache.SetVolumes(volumes); err != nil {
+			log.Printf("[ERROR] Failed to cache volumes: %v", err)
+		}
+	}
+
+	respondJSONWithCache(w, http.StatusOK, volumes, false)
+}
+
+// GetVolume gets a specific volume
+func (h *Handler) GetVolume(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	volume, err := h.client.GetVolume(volid)
+	if err != nil {
+		// Try to get from cache if Proxmox is down
+		if h.cache != nil {
+			cached, cacheErr := h.cache.GetVolume(volid)
+			if cacheErr == nil {
+				log.Printf("Serving volume %s from cache (Proxmox error: %v)", volid, err)
+				respondJSONWithCache(w, http.StatusOK, cached, true)
+				return
+			}
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Cache the volume
+	if h.cache != nil {
+		if err := h.cache.SetVolume(*volume); err != nil {
+			log.Printf("Failed to cache volume %s: %v", volid, err)
+		}
+	}
+
+	respondJSONWithCache(w, http.StatusOK, volume, false)
+}
+
+// CreateVolume creates a new persistent volume
+func (h *Handler) CreateVolume(w http.ResponseWriter, r *http.Request) {
+	var req proxmox.CreateVolumeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		respondError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if req.Size <= 0 {
+		respondError(w, http.StatusBadRequest, "size must be greater than 0")
+		return
+	}
+
+	volume, err := h.client.CreateVolume(req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, volume)
+}
+
+// DeleteVolume deletes a volume
+func (h *Handler) DeleteVolume(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	if err := h.client.DeleteVolume(volid); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// AttachVolume attaches a volume to a container
+func (h *Handler) AttachVolume(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+	vmidStr := vars["vmid"]
+
+	if volid == "" || vmidStr == "" {
+		respondError(w, http.StatusBadRequest, "volid and vmid are required")
+		return
+	}
+
+	vmid, err := strconv.Atoi(vmidStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid vmid")
+		return
+	}
+
+	var req proxmox.AttachVolumeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// If body is empty, just use default values
+		req = proxmox.AttachVolumeRequest{VMID: vmid}
+	} else {
+		req.VMID = vmid // Override with path parameter
+	}
+
+	if err := h.client.AttachVolume(volid, req); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "attached"})
+}
+
+// DetachVolume detaches a volume from a container
+func (h *Handler) DetachVolume(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+	vmidStr := vars["vmid"]
+
+	if volid == "" || vmidStr == "" {
+		respondError(w, http.StatusBadRequest, "volid and vmid are required")
+		return
+	}
+
+	vmid, err := strconv.Atoi(vmidStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid vmid")
+		return
+	}
+
+	var req proxmox.DetachVolumeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// If body is empty, just use default values
+		req = proxmox.DetachVolumeRequest{VMID: vmid}
+	} else {
+		req.VMID = vmid // Override with path parameter
+	}
+
+	if err := h.client.DetachVolume(volid, req); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "detached"})
+}
+
+// CreateSnapshot creates a snapshot of a volume
+func (h *Handler) CreateSnapshot(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	var req proxmox.CreateSnapshotRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		respondError(w, http.StatusBadRequest, "snapshot name is required")
+		return
+	}
+
+	snapshot, err := h.client.CreateSnapshot(volid, req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, snapshot)
+}
+
+// ListSnapshots lists all snapshots for a volume
+func (h *Handler) ListSnapshots(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	snapshots, err := h.client.GetSnapshots(volid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, snapshots)
+}
+
+// RestoreSnapshot restores a volume from a snapshot
+func (h *Handler) RestoreSnapshot(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	var req proxmox.RestoreSnapshotRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.SnapshotName == "" {
+		respondError(w, http.StatusBadRequest, "snapshot_name is required")
+		return
+	}
+
+	if err := h.client.RestoreSnapshot(volid, req); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "restored"})
+}
+
+// CloneSnapshot clones a volume from a snapshot
+func (h *Handler) CloneSnapshot(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	volid := vars["volid"]
+
+	if volid == "" {
+		respondError(w, http.StatusBadRequest, "volid is required")
+		return
+	}
+
+	var req proxmox.CloneSnapshotRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.SnapshotName == "" || req.NewName == "" {
+		respondError(w, http.StatusBadRequest, "snapshot_name and new_name are required")
+		return
+	}
+
+	volume, err := h.client.CloneSnapshot(volid, req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, volume)
+}

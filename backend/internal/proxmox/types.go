@@ -44,6 +44,71 @@ type Template struct {
 	Content string `json:"content"`
 }
 
+// Volume represents a persistent storage volume (ZFS zvol)
+type Volume struct {
+	VolID      string `json:"volid"`
+	Name       string `json:"name"`
+	Size       int64  `json:"size"` // Size in GB
+	Used       int64  `json:"used"` // Used space in GB
+	Node       string `json:"node"`
+	Storage    string `json:"storage"`               // Storage pool (e.g., local-lvm, local-zfs)
+	Type       string `json:"type"`                  // ssd or hdd
+	Format     string `json:"format"`                // raw, qcow2, etc.
+	Status     string `json:"status"`                // available, in-use, error
+	AttachedTo *int   `json:"attached_to,omitempty"` // VMID if attached
+	MountPoint string `json:"mountpoint,omitempty"`  // Mount point if attached (mp0-mp9)
+	CreatedAt  int64  `json:"created_at,omitempty"`  // Unix timestamp
+}
+
+// CreateVolumeRequest holds parameters for creating a new volume
+type CreateVolumeRequest struct {
+	Name    string `json:"name"`
+	Size    int    `json:"size"`           // Size in GB
+	Storage string `json:"storage"`        // Storage pool (default: local-lvm)
+	Type    string `json:"type"`           // ssd or hdd (default: ssd)
+	Node    string `json:"node,omitempty"` // Optional: specific node
+}
+
+// AttachVolumeRequest holds parameters for attaching a volume to a container
+type AttachVolumeRequest struct {
+	VMID       int    `json:"vmid"`
+	MountPoint string `json:"mountpoint,omitempty"` // Optional: mp0-mp9 (auto-detect if not provided)
+}
+
+// DetachVolumeRequest holds parameters for detaching a volume
+type DetachVolumeRequest struct {
+	VMID  int  `json:"vmid"`
+	Force bool `json:"force,omitempty"` // Force detach even if container is running
+}
+
+// Snapshot represents a volume snapshot
+type Snapshot struct {
+	Name        string `json:"name"`
+	VolID       string `json:"volid"`
+	Description string `json:"description,omitempty"`
+	CreatedAt   int64  `json:"created_at"`
+	Size        int64  `json:"size"`             // Snapshot size in GB
+	Parent      string `json:"parent,omitempty"` // Parent snapshot name
+}
+
+// CreateSnapshotRequest holds parameters for creating a volume snapshot
+type CreateSnapshotRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// RestoreSnapshotRequest holds parameters for restoring a volume from snapshot
+type RestoreSnapshotRequest struct {
+	SnapshotName string `json:"snapshot_name"`
+}
+
+// CloneSnapshotRequest holds parameters for cloning a volume from snapshot
+type CloneSnapshotRequest struct {
+	SnapshotName string `json:"snapshot_name"`
+	NewName      string `json:"new_name"`
+	Storage      string `json:"storage,omitempty"` // Optional: different storage pool
+}
+
 // ProxmoxResponse is the generic response from Proxmox API
 type ProxmoxResponse struct {
 	Data json.RawMessage `json:"data"`

@@ -71,3 +71,60 @@ export interface Template {
   size: number;
   content: string;
 }
+
+export interface Volume {
+  volid: string;
+  name: string;
+  size: number; // Size in GB
+  used: number; // Used space in GB
+  node: string;
+  storage: string;
+  type: string; // ssd or hdd
+  format: string;
+  status: 'available' | 'in-use' | 'error';
+  attached_to?: number; // VMID if attached
+  mountpoint?: string;
+  created_at?: number;
+}
+
+export interface CreateVolumeRequest {
+  name: string;
+  size: number; // Size in GB
+  storage?: string; // Storage pool (default: local-lvm)
+  type?: string; // ssd or hdd (default: ssd)
+  node?: string;
+}
+
+export interface AttachVolumeRequest {
+  vmid: number;
+  mountpoint?: string; // Optional: mp0-mp9
+}
+
+export interface DetachVolumeRequest {
+  vmid: number;
+  force?: boolean;
+}
+
+export interface Snapshot {
+  name: string;
+  volid: string;
+  description?: string;
+  created_at: number;
+  size: number;
+  parent?: string;
+}
+
+export interface CreateSnapshotRequest {
+  name: string;
+  description?: string;
+}
+
+export interface RestoreSnapshotRequest {
+  snapshot_name: string;
+}
+
+export interface CloneSnapshotRequest {
+  snapshot_name: string;
+  new_name: string;
+  storage?: string;
+}

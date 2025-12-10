@@ -53,7 +53,14 @@ func (c *Cache) initialize() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS volumes (
+		volid TEXT PRIMARY KEY,
+		data TEXT NOT NULL,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_containers_updated ON containers(updated_at);
+	CREATE INDEX IF NOT EXISTS idx_volumes_updated ON volumes(updated_at);
 	`
 
 	if _, err := c.db.Exec(schema); err != nil {
@@ -241,6 +248,113 @@ func (c *Cache) GetTemplates() ([]proxmox.Template, error) {
 	return templates, nil
 }
 
+// SetVolumes caches the list of volumes
+func (c *Cache) SetVolumes(volumes []proxmox.Volume) error {
+	tx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
+
+	// Clear old data
+	if _, err := tx.Exec("DELETE FROM volumes"); err != nil {
+		return err
+	}
+
+	// Insert new data
+	stmt, err := tx.Prepare("INSERT INTO volumes (volid, data, updated_at) VALUES (?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	now := time.Now()
+	for _, volume := range volumes {
+		data, err := json.Marshal(volume)
+		if err != nil {
+			log.Printf("Failed to marshal volume %s: %v", volume.VolID, err)
+			continue
+		}
+
+		if _, err := stmt.Exec(volume.VolID, string(data), now); err != nil {
+			log.Printf("Failed to cache volume %s: %v", volume.VolID, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetVolumes retrieves cached volumes
+func (c *Cache) GetVolumes() ([]proxmox.Volume, error) {
+	rows, err := c.db.Query("SELECT data FROM volumes ORDER BY volid")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var volumes []proxmox.Volume
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			log.Printf("Failed to scan volume: %v", err)
+			continue
+		}
+
+		var volume proxmox.Volume
+		if err := json.Unmarshal([]byte(data), &volume); err != nil {
+			log.Printf("Failed to unmarshal volume: %v", err)
+			continue
+		}
+
+		volumes = append(volumes, volume)
+	}
+
+	return volumes, rows.Err()
+}
+
+// SetVolume caches a single volume
+func (c *Cache) SetVolume(volume proxmox.Volume) error {
+	data, err := json.Marshal(volume)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.db.Exec(
+		"INSERT OR REPLACE INTO volumes (volid, data, updated_at) VALUES (?, ?, ?)",
+		volume.VolID, string(data), time.Now(),
+	)
+	return err
+}
+
+// GetVolume retrieves a cached volume
+func (c *Cache) GetVolume(volid string) (*proxmox.Volume, error) {
+	var data string
+	err := c.db.QueryRow("SELECT data FROM volumes WHERE volid = ?", volid).Scan(&data)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("volume %s not found in cache", volid)
+		}
+		return nil, err
+	}
+
+	var volume proxmox.Volume
+	if err := json.Unmarshal([]byte(data), &volume); err != nil {
+		return nil, err
+	}
+
+	return &volume, nil
+}
+
+// DeleteVolume removes a volume from cache
+func (c *Cache) DeleteVolume(volid string) error {
+	_, err := c.db.Exec("DELETE FROM volumes WHERE volid = ?", volid)
+	return err
+}
+
 // GetCacheAge returns the age of the cache in seconds
 func (c *Cache) GetCacheAge() (int64, error) {
 	var updatedAt time.Time
@@ -257,6 +371,6 @@ func (c *Cache) GetCacheAge() (int64, error) {
 
 // Clear clears all cached data
 func (c *Cache) Clear() error {
-	_, err := c.db.Exec("DELETE FROM containers; DELETE FROM dashboard; DELETE FROM templates")
+	_, err := c.db.Exec("DELETE FROM containers; DELETE FROM dashboard; DELETE FROM templates; DELETE FROM volumes")
 	return err
 }

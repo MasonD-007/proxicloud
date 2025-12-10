@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -280,5 +280,65 @@ export async function uploadTemplate(file: File, storage: string = 'local', onPr
     // Send request
     xhr.open('POST', `${API_URL}/templates/upload`);
     xhr.send(formData);
+  });
+}
+
+// Volumes
+export async function getVolumes(): Promise<Volume[]> {
+  return fetchAPI('/volumes');
+}
+
+export async function getVolume(volid: string): Promise<Volume> {
+  return fetchAPI(`/volumes/${encodeURIComponent(volid)}`);
+}
+
+export async function createVolume(data: CreateVolumeRequest): Promise<Volume> {
+  return fetchAPI('/volumes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteVolume(volid: string): Promise<void> {
+  await fetchAPI(`/volumes/${encodeURIComponent(volid)}`, { method: 'DELETE' });
+}
+
+export async function attachVolume(volid: string, vmid: number, data?: AttachVolumeRequest): Promise<void> {
+  await fetchAPI(`/volumes/${encodeURIComponent(volid)}/attach/${vmid}`, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : JSON.stringify({ vmid }),
+  });
+}
+
+export async function detachVolume(volid: string, vmid: number, data?: DetachVolumeRequest): Promise<void> {
+  await fetchAPI(`/volumes/${encodeURIComponent(volid)}/detach/${vmid}`, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : JSON.stringify({ vmid }),
+  });
+}
+
+// Snapshots
+export async function getSnapshots(volid: string): Promise<Snapshot[]> {
+  return fetchAPI(`/volumes/${encodeURIComponent(volid)}/snapshots`);
+}
+
+export async function createSnapshot(volid: string, data: CreateSnapshotRequest): Promise<Snapshot> {
+  return fetchAPI(`/volumes/${encodeURIComponent(volid)}/snapshots`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function restoreSnapshot(volid: string, data: RestoreSnapshotRequest): Promise<void> {
+  await fetchAPI(`/volumes/${encodeURIComponent(volid)}/snapshots/restore`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function cloneSnapshot(volid: string, data: CloneSnapshotRequest): Promise<Volume> {
+  return fetchAPI(`/volumes/${encodeURIComponent(volid)}/snapshots/clone`, {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }

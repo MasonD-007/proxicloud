@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Container, BarChart3, FileText } from 'lucide-react';
+import { LayoutDashboard, Container, BarChart3, FileText, HardDrive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/containers', label: 'Containers', icon: Container },
+  { href: '/volumes', label: 'Volumes', icon: HardDrive },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/templates', label: 'Templates', icon: FileText },
 ];
@@ -20,7 +21,9 @@ export default function Sidebar() {
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = 
+            pathname === item.href || 
+            (item.href !== '/' && pathname.startsWith(item.href));
           
           return (
             <Link

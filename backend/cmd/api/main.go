@@ -106,6 +106,18 @@ func main() {
 	api.HandleFunc("/containers/{vmid}/metrics", h.GetContainerMetrics).Methods("GET")
 	api.HandleFunc("/containers/{vmid}/metrics/summary", h.GetContainerMetricsSummary).Methods("GET")
 
+	// Volume routes
+	api.HandleFunc("/volumes", h.ListVolumes).Methods("GET")
+	api.HandleFunc("/volumes", h.CreateVolume).Methods("POST")
+	api.HandleFunc("/volumes/{volid}", h.GetVolume).Methods("GET")
+	api.HandleFunc("/volumes/{volid}", h.DeleteVolume).Methods("DELETE")
+	api.HandleFunc("/volumes/{volid}/attach/{vmid}", h.AttachVolume).Methods("POST")
+	api.HandleFunc("/volumes/{volid}/detach/{vmid}", h.DetachVolume).Methods("POST")
+	api.HandleFunc("/volumes/{volid}/snapshots", h.ListSnapshots).Methods("GET")
+	api.HandleFunc("/volumes/{volid}/snapshots", h.CreateSnapshot).Methods("POST")
+	api.HandleFunc("/volumes/{volid}/snapshots/restore", h.RestoreSnapshot).Methods("POST")
+	api.HandleFunc("/volumes/{volid}/snapshots/clone", h.CloneSnapshot).Methods("POST")
+
 	// Set up CORS
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

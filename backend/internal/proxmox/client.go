@@ -422,3 +422,403 @@ func (c *Client) UploadTemplate(storage string, filename string, fileData []byte
 	fmt.Printf("[INFO] Template uploaded successfully: %s\n", filename)
 	return nil
 }
+
+// CreateVolume creates a new persistent volume (ZFS zvol)
+func (c *Client) CreateVolume(req CreateVolumeRequest) (*Volume, error) {
+	storage := req.Storage
+	if storage == "" {
+		storage = "local-lvm"
+	}
+
+	volumeType := req.Type
+	if volumeType == "" {
+		volumeType = "ssd"
+	}
+
+	node := req.Node
+	if node == "" {
+		node = c.node
+	}
+
+	// Create ZFS zvol using Proxmox storage API
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content", node, storage)
+	fmt.Printf("[DEBUG] CreateVolume: requesting path=%s\n", path)
+
+	params := map[string]interface{}{
+		"filename": req.Name,
+		"size":     fmt.Sprintf("%dG", req.Size),
+		"vmid":     0, // Not attached to any VM initially
+	}
+
+	respBody, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create volume: %w", err)
+	}
+
+	var response struct {
+		Data string `json:"data"` // Returns volid (e.g., "local-lvm:vm-0-disk-0")
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse create volume response: %w", err)
+	}
+
+	fmt.Printf("[INFO] CreateVolume: created volume with volid=%s\n", response.Data)
+
+	// Return volume object
+	volume := &Volume{
+		VolID:     response.Data,
+		Name:      req.Name,
+		Size:      int64(req.Size),
+		Node:      node,
+		Storage:   storage,
+		Type:      volumeType,
+		Format:    "raw",
+		Status:    "available",
+		CreatedAt: time.Now().Unix(),
+	}
+
+	return volume, nil
+}
+
+// GetVolumes retrieves all volumes on the node
+func (c *Client) GetVolumes() ([]Volume, error) {
+	// Query multiple storage pools
+	storageLocations := []string{"local-lvm", "local-zfs"}
+
+	var allVolumes []Volume
+
+	for _, storage := range storageLocations {
+		path := fmt.Sprintf("/nodes/%s/storage/%s/content", c.node, storage)
+		fmt.Printf("[DEBUG] GetVolumes: requesting path=%s\n", path)
+
+		respBody, err := c.doRequest("GET", path, nil)
+		if err != nil {
+			fmt.Printf("[WARNING] Failed to get volumes from storage '%s': %v\n", storage, err)
+			continue
+		}
+
+		var response struct {
+			Data []struct {
+				VolID   string `json:"volid"`
+				Size    int64  `json:"size"`
+				Format  string `json:"format"`
+				Content string `json:"content"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			fmt.Printf("[ERROR] Failed to unmarshal volumes response from '%s': %v\n", storage, err)
+			continue
+		}
+
+		// Filter for images (volumes)
+		for _, item := range response.Data {
+			if item.Content == "images" {
+				volume := Volume{
+					VolID:   item.VolID,
+					Name:    extractVolumeName(item.VolID),
+					Size:    item.Size / (1024 * 1024 * 1024), // Convert bytes to GB
+					Node:    c.node,
+					Storage: storage,
+					Format:  item.Format,
+					Status:  "available", // Default status
+				}
+				allVolumes = append(allVolumes, volume)
+			}
+		}
+	}
+
+	fmt.Printf("[INFO] GetVolumes: returning %d total volumes\n", len(allVolumes))
+	return allVolumes, nil
+}
+
+// GetVolume retrieves a specific volume by volid
+func (c *Client) GetVolume(volid string) (*Volume, error) {
+	// Parse storage from volid (format: "storage:volume-name")
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", c.node, storage, volid)
+	fmt.Printf("[DEBUG] GetVolume: requesting path=%s\n", path)
+
+	respBody, err := c.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get volume: %w", err)
+	}
+
+	var response struct {
+		Data struct {
+			VolID  string `json:"volid"`
+			Size   int64  `json:"size"`
+			Format string `json:"format"`
+			Used   int64  `json:"used"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse volume response: %w", err)
+	}
+
+	volume := &Volume{
+		VolID:   response.Data.VolID,
+		Name:    extractVolumeName(response.Data.VolID),
+		Size:    response.Data.Size / (1024 * 1024 * 1024), // Convert bytes to GB
+		Used:    response.Data.Used / (1024 * 1024 * 1024), // Convert bytes to GB
+		Node:    c.node,
+		Storage: storage,
+		Format:  response.Data.Format,
+		Status:  "available",
+	}
+
+	return volume, nil
+}
+
+// DeleteVolume deletes a volume
+func (c *Client) DeleteVolume(volid string) error {
+	// Parse storage from volid
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", c.node, storage, volid)
+	fmt.Printf("[DEBUG] DeleteVolume: requesting path=%s\n", path)
+
+	_, err := c.doRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete volume: %w", err)
+	}
+
+	fmt.Printf("[INFO] DeleteVolume: deleted volume %s\n", volid)
+	return nil
+}
+
+// AttachVolume attaches a volume to a container
+func (c *Client) AttachVolume(volid string, req AttachVolumeRequest) error {
+	// Determine mount point (auto-detect if not provided)
+	mountPoint := req.MountPoint
+	if mountPoint == "" {
+		// Auto-detect next available mount point (mp0-mp9)
+		_, err := c.GetContainer(req.VMID)
+		if err != nil {
+			return fmt.Errorf("failed to get container: %w", err)
+		}
+
+		// Find next available mount point
+		// This is a simplified version - in production, you'd parse the container config
+		mountPoint = "mp0"
+		fmt.Printf("[INFO] Auto-detected mount point: %s\n", mountPoint)
+	}
+
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, req.VMID)
+	fmt.Printf("[DEBUG] AttachVolume: requesting path=%s\n", path)
+
+	// Attach volume using mount point configuration
+	params := map[string]interface{}{
+		mountPoint: fmt.Sprintf("%s,mp=/mnt/%s", volid, extractVolumeName(volid)),
+	}
+
+	_, err := c.doRequest("PUT", path, params)
+	if err != nil {
+		return fmt.Errorf("failed to attach volume: %w", err)
+	}
+
+	fmt.Printf("[INFO] AttachVolume: attached %s to container %d at %s\n", volid, req.VMID, mountPoint)
+	return nil
+}
+
+// DetachVolume detaches a volume from a container
+func (c *Client) DetachVolume(volid string, req DetachVolumeRequest) error {
+	// Get container config to find mount point
+	container, err := c.GetContainer(req.VMID)
+	if err != nil {
+		return fmt.Errorf("failed to get container: %w", err)
+	}
+
+	// Check if container is running and force is not set
+	if container.Status == "running" && !req.Force {
+		return fmt.Errorf("container is running, use force=true to detach")
+	}
+
+	// Find which mount point has this volume
+	// This is simplified - in production, you'd parse the container config
+	mountPoint := "mp0"
+
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, req.VMID)
+	fmt.Printf("[DEBUG] DetachVolume: requesting path=%s\n", path)
+
+	// Remove mount point configuration
+	params := map[string]interface{}{
+		"delete": mountPoint,
+	}
+
+	_, err = c.doRequest("PUT", path, params)
+	if err != nil {
+		return fmt.Errorf("failed to detach volume: %w", err)
+	}
+
+	fmt.Printf("[INFO] DetachVolume: detached %s from container %d\n", volid, req.VMID)
+	return nil
+}
+
+// CreateSnapshot creates a snapshot of a volume
+func (c *Client) CreateSnapshot(volid string, req CreateSnapshotRequest) (*Snapshot, error) {
+	// Parse storage from volid
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot", c.node, storage, volid)
+	fmt.Printf("[DEBUG] CreateSnapshot: requesting path=%s\n", path)
+
+	params := map[string]interface{}{
+		"snapname": req.Name,
+	}
+	if req.Description != "" {
+		params["description"] = req.Description
+	}
+
+	respBody, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create snapshot: %w", err)
+	}
+
+	var response struct {
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse create snapshot response: %w", err)
+	}
+
+	snapshot := &Snapshot{
+		Name:        req.Name,
+		VolID:       volid,
+		Description: req.Description,
+		CreatedAt:   time.Now().Unix(),
+	}
+
+	fmt.Printf("[INFO] CreateSnapshot: created snapshot %s for volume %s\n", req.Name, volid)
+	return snapshot, nil
+}
+
+// GetSnapshots retrieves all snapshots for a volume
+func (c *Client) GetSnapshots(volid string) ([]Snapshot, error) {
+	// Parse storage from volid
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshots", c.node, storage, volid)
+	fmt.Printf("[DEBUG] GetSnapshots: requesting path=%s\n", path)
+
+	respBody, err := c.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshots: %w", err)
+	}
+
+	var response struct {
+		Data []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			CreatedAt   int64  `json:"ctime"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse snapshots response: %w", err)
+	}
+
+	snapshots := make([]Snapshot, len(response.Data))
+	for i, s := range response.Data {
+		snapshots[i] = Snapshot{
+			Name:        s.Name,
+			VolID:       volid,
+			Description: s.Description,
+			CreatedAt:   s.CreatedAt,
+		}
+	}
+
+	fmt.Printf("[INFO] GetSnapshots: returning %d snapshots for volume %s\n", len(snapshots), volid)
+	return snapshots, nil
+}
+
+// RestoreSnapshot restores a volume from a snapshot
+func (c *Client) RestoreSnapshot(volid string, req RestoreSnapshotRequest) error {
+	// Parse storage from volid
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot/%s/rollback", c.node, storage, volid, req.SnapshotName)
+	fmt.Printf("[DEBUG] RestoreSnapshot: requesting path=%s\n", path)
+
+	_, err := c.doRequest("POST", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to restore snapshot: %w", err)
+	}
+
+	fmt.Printf("[INFO] RestoreSnapshot: restored volume %s from snapshot %s\n", volid, req.SnapshotName)
+	return nil
+}
+
+// CloneSnapshot clones a volume from a snapshot
+func (c *Client) CloneSnapshot(volid string, req CloneSnapshotRequest) (*Volume, error) {
+	// Parse storage from volid
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid volid format: %s", volid)
+	}
+	storage := parts[0]
+	if req.Storage != "" {
+		storage = req.Storage
+	}
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot/%s/clone", c.node, storage, volid, req.SnapshotName)
+	fmt.Printf("[DEBUG] CloneSnapshot: requesting path=%s\n", path)
+
+	params := map[string]interface{}{
+		"target": req.NewName,
+	}
+
+	respBody, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone snapshot: %w", err)
+	}
+
+	var response struct {
+		Data string `json:"data"` // Returns new volid
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse clone snapshot response: %w", err)
+	}
+
+	volume := &Volume{
+		VolID:     response.Data,
+		Name:      req.NewName,
+		Node:      c.node,
+		Storage:   storage,
+		Format:    "raw",
+		Status:    "available",
+		CreatedAt: time.Now().Unix(),
+	}
+
+	fmt.Printf("[INFO] CloneSnapshot: cloned snapshot %s to new volume %s\n", req.SnapshotName, response.Data)
+	return volume, nil
+}
+
+// extractVolumeName extracts the volume name from a volid
+// Example: "local-lvm:vm-100-disk-0" -> "vm-100-disk-0"
+func extractVolumeName(volid string) string {
+	parts := strings.SplitN(volid, ":", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return volid
+}

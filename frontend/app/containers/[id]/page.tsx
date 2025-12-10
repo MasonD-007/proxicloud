@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Server, Play, Square, RotateCw, Trash2, HardDrive, Cpu, MemoryStick, Network } from 'lucide-react';
+import { ArrowLeft, Server, Play, Square, RotateCw, Trash2, HardDrive, Cpu, MemoryStick, Network, Plus, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { MetricsChart } from '@/components/analytics/MetricsChart';
 import { MetricsSummary } from '@/components/analytics/MetricsSummary';
-import { getContainer, startContainer, stopContainer, rebootContainer, deleteContainer } from '@/lib/api';
+import { getContainer, startContainer, stopContainer, rebootContainer, deleteContainer, getVolumes, attachVolume, detachVolume } from '@/lib/api';
 import { formatBytes, formatCPU, formatUptime } from '@/lib/utils';
-import type { Container } from '@/lib/types';
+import type { Container, Volume } from '@/lib/types';
 
 export default function ContainerDetailPage() {
   const router = useRouter();
@@ -19,24 +19,31 @@ export default function ContainerDetailPage() {
   const vmid = parseInt(params.id as string);
 
   const [container, setContainer] = useState<Container | null>(null);
+  const [volumes, setVolumes] = useState<Volume[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAttachVolume, setShowAttachVolume] = useState(false);
+  const [selectedVolume, setSelectedVolume] = useState<string | null>(null);
 
   useEffect(() => {
     if (vmid) {
-      loadContainer();
-      const interval = setInterval(loadContainer, 5000); // Refresh every 5 seconds
+      loadData();
+      const interval = setInterval(loadData, 5000); // Refresh every 5 seconds
       return () => clearInterval(interval);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vmid]);
 
-  async function loadContainer() {
+  async function loadData() {
     try {
       setError(null);
-      const data = await getContainer(vmid);
-      setContainer(data);
+      const [containerData, volumesData] = await Promise.all([
+        getContainer(vmid),
+        getVolumes(),
+      ]);
+      setContainer(containerData);
+      setVolumes(volumesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load container');
     } finally {
@@ -68,9 +75,39 @@ export default function ContainerDetailPage() {
           router.push('/containers');
           return;
       }
-      await loadContainer();
+      await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleAttachVolume() {
+    if (!selectedVolume) return;
+
+    try {
+      setActionLoading(true);
+      await attachVolume(selectedVolume, vmid);
+      setShowAttachVolume(false);
+      setSelectedVolume(null);
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Attach failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDetachVolume(volid: string) {
+    if (!confirm('Are you sure you want to detach this volume?')) return;
+
+    try {
+      setActionLoading(true);
+      await detachVolume(volid, vmid);
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Detach failed');
     } finally {
       setActionLoading(false);
     }
@@ -309,6 +346,115 @@ export default function ContainerDetailPage() {
               <dd className="text-text-primary mt-1">{formatBytes(container.maxdisk)}</dd>
             </div>
           </div>
+        </div>
+      </Card>
+
+      {/* Attached Volumes */}
+      <Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-text-primary">Attached Volumes</h2>
+            <Button
+              onClick={() => setShowAttachVolume(true)}
+              size="sm"
+              disabled={container?.status !== 'running'}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Attach Volume
+            </Button>
+          </div>
+
+          {container?.status !== 'running' && (
+            <div className="text-sm text-text-muted bg-surface-elevated p-3 rounded-lg border border-border">
+              Container must be running to attach volumes
+            </div>
+          )}
+
+          {/* Attach Volume Form */}
+          {showAttachVolume && (
+            <div className="p-4 bg-surface-elevated rounded-lg border border-border space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  Select Volume
+                </label>
+                <select
+                  value={selectedVolume || ''}
+                  onChange={(e) => setSelectedVolume(e.target.value)}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Choose a volume...</option>
+                  {volumes
+                    .filter((v) => v.status === 'available')
+                    .map((volume) => (
+                      <option key={volume.volid} value={volume.volid}>
+                        {volume.name} ({volume.size} GB - {volume.type.toUpperCase()})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleAttachVolume} disabled={!selectedVolume || actionLoading}>
+                  Attach
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowAttachVolume(false);
+                    setSelectedVolume(null);
+                  }}
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Volumes List */}
+          {volumes.filter((v) => v.attached_to === vmid).length === 0 ? (
+            <div className="text-center py-8 text-text-muted">
+              <HardDrive className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No volumes attached</p>
+              <p className="text-sm mt-2">
+                Attach persistent volumes to store data independently of this container
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {volumes
+                .filter((v) => v.attached_to === vmid)
+                .map((volume) => (
+                  <div
+                    key={volume.volid}
+                    className="flex items-center justify-between p-4 bg-surface-elevated rounded-lg border border-border"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <HardDrive className="w-5 h-5 text-text-muted" />
+                      <div className="flex-1">
+                        <Link href={`/volumes/${encodeURIComponent(volume.volid)}`}>
+                          <div className="font-medium text-primary hover:underline">
+                            {volume.name}
+                          </div>
+                        </Link>
+                        <div className="text-sm text-text-muted">
+                          {volume.size} GB {volume.type.toUpperCase()} on {volume.storage}
+                          {volume.mountpoint && ` • ${volume.mountpoint}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDetachVolume(volume.volid)}
+                      disabled={actionLoading}
+                      className="p-2 text-error hover:bg-error/10 rounded transition-colors disabled:opacity-50"
+                      title="Detach Volume"
+                    >
+                      <Unlink className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       </Card>
 
