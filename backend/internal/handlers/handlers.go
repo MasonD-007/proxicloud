@@ -940,27 +940,45 @@ func (h *Handler) GetProjectContainers(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
+	log.Printf("[DEBUG] GetProjectContainers called for project ID: %s", id)
+
 	// Get project
 	project, err := h.projectStore.GetProject(id)
 	if err != nil {
+		log.Printf("[ERROR] Project not found: %s", id)
 		respondError(w, http.StatusNotFound, "project not found")
 		return
 	}
 
+	log.Printf("[DEBUG] Project found: %+v", project)
+
 	// Get all containers
 	containers, err := h.client.GetContainers()
 	if err != nil {
+		log.Printf("[ERROR] Failed to get containers: %v", err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	log.Printf("[DEBUG] Total containers from Proxmox: %d", len(containers))
+
+	// Enrich with project information
+	for i := range containers {
+		projectID := h.projectStore.GetContainerProject(containers[i].VMID)
+		containers[i].ProjectID = projectID
+		log.Printf("[DEBUG] Container %d has project ID: %s", containers[i].VMID, projectID)
 	}
 
 	// Filter containers by project
 	projectContainers := []proxmox.Container{}
 	for _, c := range containers {
-		if c.ProjectID != "" && c.ProjectID == id {
+		if c.ProjectID == id {
 			projectContainers = append(projectContainers, c)
+			log.Printf("[DEBUG] Container %d matched project %s", c.VMID, id)
 		}
 	}
+
+	log.Printf("[DEBUG] Filtered containers for project %s: %d", id, len(projectContainers))
 
 	// Calculate aggregates
 	totalCPU := 0

@@ -30,6 +30,8 @@ export default function ProjectDetailsPage() {
         getProject(projectId),
         getProjectContainers(projectId),
       ]);
+      console.log('[DEBUG] Project data:', projectData);
+      console.log('[DEBUG] Project containers data:', projectContainersData);
       setProject(projectData);
       // Extract containers array from the response object
       setContainers(projectContainersData.containers || []);
