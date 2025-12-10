@@ -320,6 +320,14 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove container from project assignment if it was assigned
+	if h.projectStore != nil {
+		if err := h.projectStore.AssignContainer(vmid, ""); err != nil {
+			log.Printf("[WARNING] Failed to remove container %d from project assignment: %v", vmid, err)
+			// Don't fail the request, just log the warning
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
@@ -917,10 +925,45 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	err := h.projectStore.DeleteProject(id)
+	// Get all containers to verify which ones still exist
+	existingContainers, err := h.client.GetContainers()
 	if err != nil {
-		if err.Error() == "cannot delete project with containers" {
-			respondError(w, http.StatusBadRequest, err.Error())
+		log.Printf("[WARNING] Failed to get containers for cleanup check: %v", err)
+		// Continue anyway, as this is just a cleanup attempt
+	}
+
+	// Create a map of existing container VMIDs for quick lookup
+	existingVMIDs := make(map[int]bool)
+	if existingContainers != nil {
+		for _, c := range existingContainers {
+			existingVMIDs[c.VMID] = true
+		}
+	}
+
+	// Get containers assigned to this project
+	assignedVMIDs := h.projectStore.GetProjectContainers(id)
+
+	// Clean up any stale assignments (containers that no longer exist in Proxmox)
+	for _, vmid := range assignedVMIDs {
+		if !existingVMIDs[vmid] {
+			log.Printf("[INFO] Cleaning up stale container assignment: VMID %d in project %s", vmid, id)
+			if err := h.projectStore.AssignContainer(vmid, ""); err != nil {
+				log.Printf("[WARNING] Failed to clean up stale assignment for VMID %d: %v", vmid, err)
+			}
+		}
+	}
+
+	// Now try to delete the project
+	err = h.projectStore.DeleteProject(id)
+	if err != nil {
+		if err.Error() == "cannot delete project: containers still assigned" {
+			// Re-check after cleanup
+			remainingVMIDs := h.projectStore.GetProjectContainers(id)
+			if len(remainingVMIDs) > 0 {
+				respondError(w, http.StatusBadRequest, fmt.Sprintf("cannot delete project: %d container(s) still assigned", len(remainingVMIDs)))
+			} else {
+				respondError(w, http.StatusBadRequest, err.Error())
+			}
 		} else {
 			respondError(w, http.StatusInternalServerError, err.Error())
 		}
