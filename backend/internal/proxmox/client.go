@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -71,12 +72,13 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 				return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
 			}
 
-			// Convert to form values
-			values := make([]string, 0, len(bodyMap))
+			// Convert to form values using url.Values for proper URL encoding
+			formValues := url.Values{}
 			for k, v := range bodyMap {
-				values = append(values, fmt.Sprintf("%s=%v", k, v))
+				formValues.Set(k, fmt.Sprintf("%v", v))
 			}
-			formData := strings.Join(values, "&")
+
+			formData := formValues.Encode()
 			fmt.Printf("[DEBUG] Form data: %s\n", formData)
 			reqBody = strings.NewReader(formData)
 			contentType = "application/x-www-form-urlencoded"
