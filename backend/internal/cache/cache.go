@@ -59,6 +59,12 @@ func (c *Cache) initialize() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS storage (
+		id INTEGER PRIMARY KEY DEFAULT 1,
+		data TEXT NOT NULL,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_containers_updated ON containers(updated_at);
 	CREATE INDEX IF NOT EXISTS idx_volumes_updated ON volumes(updated_at);
 	`
@@ -355,6 +361,39 @@ func (c *Cache) DeleteVolume(volid string) error {
 	return err
 }
 
+// SetStorage caches storage information
+func (c *Cache) SetStorage(storages []proxmox.Storage) error {
+	data, err := json.Marshal(storages)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.db.Exec(
+		"INSERT OR REPLACE INTO storage (id, data, updated_at) VALUES (1, ?, ?)",
+		string(data), time.Now(),
+	)
+	return err
+}
+
+// GetStorage retrieves cached storage information
+func (c *Cache) GetStorage() ([]proxmox.Storage, error) {
+	var data string
+	err := c.db.QueryRow("SELECT data FROM storage WHERE id = 1").Scan(&data)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("storage not found in cache")
+		}
+		return nil, err
+	}
+
+	var storages []proxmox.Storage
+	if err := json.Unmarshal([]byte(data), &storages); err != nil {
+		return nil, err
+	}
+
+	return storages, nil
+}
+
 // GetCacheAge returns the age of the cache in seconds
 func (c *Cache) GetCacheAge() (int64, error) {
 	var updatedAt time.Time
@@ -371,6 +410,6 @@ func (c *Cache) GetCacheAge() (int64, error) {
 
 // Clear clears all cached data
 func (c *Cache) Clear() error {
-	_, err := c.db.Exec("DELETE FROM containers; DELETE FROM dashboard; DELETE FROM templates; DELETE FROM volumes")
+	_, err := c.db.Exec("DELETE FROM containers; DELETE FROM dashboard; DELETE FROM templates; DELETE FROM volumes; DELETE FROM storage")
 	return err
 }

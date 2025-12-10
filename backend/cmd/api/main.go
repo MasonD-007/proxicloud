@@ -115,6 +115,9 @@ func main() {
 	api.HandleFunc("/templates", h.GetTemplates).Methods("GET")
 	api.HandleFunc("/templates/upload", h.UploadTemplate).Methods("POST")
 
+	// Storage routes
+	api.HandleFunc("/storage", h.GetStorage).Methods("GET")
+
 	// Analytics routes
 	api.HandleFunc("/analytics/stats", h.GetAnalyticsStats).Methods("GET")
 	api.HandleFunc("/containers/{vmid}/metrics", h.GetContainerMetrics).Methods("GET")

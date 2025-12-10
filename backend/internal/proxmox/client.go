@@ -913,3 +913,66 @@ func extractVolumeName(volid string) string {
 	}
 	return volid
 }
+
+// GetStorage retrieves status for all datastores on the node
+func (c *Client) GetStorage(req *GetStorageRequest) ([]Storage, error) {
+	path := fmt.Sprintf("/nodes/%s/storage", c.node)
+	fmt.Printf("[DEBUG] GetStorage: requesting path=%s\n", path)
+
+	// Build query parameters if request is provided
+	var queryParams []string
+	if req != nil {
+		if req.Content != "" {
+			queryParams = append(queryParams, fmt.Sprintf("content=%s", req.Content))
+		}
+		if req.Enabled != nil {
+			enabledVal := 0
+			if *req.Enabled {
+				enabledVal = 1
+			}
+			queryParams = append(queryParams, fmt.Sprintf("enabled=%d", enabledVal))
+		}
+		if req.Format != nil {
+			formatVal := 0
+			if *req.Format {
+				formatVal = 1
+			}
+			queryParams = append(queryParams, fmt.Sprintf("format=%d", formatVal))
+		}
+		if req.Storage != "" {
+			queryParams = append(queryParams, fmt.Sprintf("storage=%s", req.Storage))
+		}
+		if req.Target != "" {
+			queryParams = append(queryParams, fmt.Sprintf("target=%s", req.Target))
+		}
+	}
+
+	// Append query parameters to path if any
+	if len(queryParams) > 0 {
+		path = path + "?" + strings.Join(queryParams, "&")
+	}
+
+	respBody, err := c.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var response struct {
+		Data []Storage `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		fmt.Printf("[ERROR] Failed to unmarshal storage response: %v\n", err)
+		fmt.Printf("[DEBUG] Raw response body: %s\n", string(respBody))
+		return nil, fmt.Errorf("failed to parse storage response: %w", err)
+	}
+
+	fmt.Printf("[INFO] GetStorage: parsed %d storage entries from Proxmox API\n", len(response.Data))
+
+	// Log details of each storage for debugging
+	for i, storage := range response.Data {
+		fmt.Printf("[DEBUG] Storage %d: ID=%s, Type=%s, Content=%s, Active=%v, Enabled=%v\n",
+			i, storage.Storage, storage.Type, storage.Content, storage.Active, storage.Enabled)
+	}
+
+	return response.Data, nil
+}

@@ -1042,3 +1042,76 @@ func (h *Handler) AssignContainerProject(w http.ResponseWriter, r *http.Request)
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "assigned"})
 }
+
+// GetStorage lists all storage datastores
+func (h *Handler) GetStorage(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] GetStorage handler called")
+
+	// Parse query parameters
+	req := &proxmox.GetStorageRequest{}
+
+	if content := r.URL.Query().Get("content"); content != "" {
+		req.Content = content
+	}
+
+	if enabled := r.URL.Query().Get("enabled"); enabled != "" {
+		if enabled == "1" || enabled == "true" {
+			enabledBool := true
+			req.Enabled = &enabledBool
+		} else if enabled == "0" || enabled == "false" {
+			enabledBool := false
+			req.Enabled = &enabledBool
+		}
+	}
+
+	if format := r.URL.Query().Get("format"); format != "" {
+		if format == "1" || format == "true" {
+			formatBool := true
+			req.Format = &formatBool
+		} else if format == "0" || format == "false" {
+			formatBool := false
+			req.Format = &formatBool
+		}
+	}
+
+	if storage := r.URL.Query().Get("storage"); storage != "" {
+		req.Storage = storage
+	}
+
+	if target := r.URL.Query().Get("target"); target != "" {
+		req.Target = target
+	}
+
+	storages, err := h.client.GetStorage(req)
+	if err != nil {
+		log.Printf("[ERROR] GetStorage failed: %v", err)
+		// Try to get from cache if Proxmox is down
+		if h.cache != nil {
+			cached, cacheErr := h.cache.GetStorage()
+			if cacheErr == nil {
+				log.Printf("[INFO] Serving storage from cache (Proxmox error: %v)", err)
+				respondJSONWithCache(w, http.StatusOK, cached, true)
+				return
+			}
+			log.Printf("[ERROR] Cache retrieval also failed: %v", cacheErr)
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	log.Printf("[INFO] Successfully retrieved %d storage entries from Proxmox", len(storages))
+	if len(storages) > 0 {
+		log.Printf("[DEBUG] Sample storage data: %+v", storages[0])
+	} else {
+		log.Printf("[WARNING] Proxmox returned empty storage list")
+	}
+
+	// Cache the storage list
+	if h.cache != nil {
+		if err := h.cache.SetStorage(storages); err != nil {
+			log.Printf("[ERROR] Failed to cache storage: %v", err)
+		}
+	}
+
+	respondJSONWithCache(w, http.StatusOK, storages, false)
+}

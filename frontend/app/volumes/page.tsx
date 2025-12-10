@@ -2,33 +2,39 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, HardDrive, Trash2, Link as LinkIcon } from 'lucide-react';
-import Card from '@/components/ui/Card';
+import { Plus, HardDrive, Trash2, Link as LinkIcon, Database, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import { getVolumes, deleteVolume } from '@/lib/api';
+import { getVolumes, deleteVolume, getStorage } from '@/lib/api';
 import { formatBytes } from '@/lib/utils';
-import type { Volume } from '@/lib/types';
+import type { Volume, Storage } from '@/lib/types';
 
 export default function VolumesPage() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
+  const [storages, setStorages] = useState<Storage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'available' | 'in-use'>('all');
+  const [showStorage, setShowStorage] = useState(true);
 
   useEffect(() => {
-    loadVolumes();
+    loadData();
   }, []);
 
-  async function loadVolumes() {
+  async function loadData() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getVolumes();
-      setVolumes(data);
+      const [volumesData, storageData] = await Promise.all([
+        getVolumes(),
+        getStorage({ enabled: true }),
+      ]);
+      setVolumes(volumesData);
+      setStorages(storageData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load volumes');
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -42,12 +48,36 @@ export default function VolumesPage() {
     try {
       setActionLoading(volid);
       await deleteVolume(volid);
-      await loadVolumes();
+      await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setActionLoading(null);
     }
+  }
+
+  function getStorageTypeColor(type: string): string {
+    switch (type.toLowerCase()) {
+      case 'dir':
+        return 'text-blue-500';
+      case 'lvm':
+      case 'lvmthin':
+        return 'text-purple-500';
+      case 'zfspool':
+        return 'text-green-500';
+      case 'nfs':
+      case 'cifs':
+        return 'text-yellow-500';
+      default:
+        return 'text-gray-500';
+    }
+  }
+
+  function getUsageColor(usedFraction?: number): string {
+    if (!usedFraction) return 'bg-gray-200';
+    if (usedFraction >= 0.9) return 'bg-red-500';
+    if (usedFraction >= 0.75) return 'bg-yellow-500';
+    return 'bg-green-500';
   }
 
   const filteredVolumes = volumes.filter((vol) => {
@@ -67,9 +97,9 @@ export default function VolumesPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="text-error mb-2">Error loading volumes</div>
+          <div className="text-error mb-2">Error loading data</div>
           <div className="text-text-muted text-sm">{error}</div>
-          <Button onClick={loadVolumes} className="mt-4" size="sm">
+          <Button onClick={loadData} className="mt-4" size="sm">
             Retry
           </Button>
         </div>
@@ -77,16 +107,215 @@ export default function VolumesPage() {
     );
   }
 
+  // Calculate total storage statistics
+  const totalStats = storages.reduce(
+    (acc, storage) => {
+      if (storage.total) acc.total += storage.total;
+      if (storage.used) acc.used += storage.used;
+      if (storage.avail) acc.avail += storage.avail;
+      return acc;
+    },
+    { total: 0, used: 0, avail: 0 }
+  );
+
+  const totalUsedFraction = totalStats.total > 0 ? totalStats.used / totalStats.total : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-text-primary">Volumes</h1>
-        <Link href="/volumes/create">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Volume
+        <h1 className="text-3xl font-bold text-text-primary">Volumes & Storage</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={loadData}>
+            <RefreshCw className="w-4 h-4" />
           </Button>
-        </Link>
+          <Link href="/volumes/create">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Volume
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Storage Overview Section */}
+      {storages.length > 0 && (
+        <>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-text-primary">Storage Overview</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowStorage(!showStorage)}
+            >
+              {showStorage ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+
+          {showStorage && (
+            <>
+              {/* Storage Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-text-muted text-sm mb-1">Total Storage</div>
+                      <div className="text-2xl font-bold text-text-primary">
+                        {formatBytes(totalStats.total)}
+                      </div>
+                      <div className="text-sm text-text-muted mt-1">
+                        {storages.length} datastores
+                      </div>
+                    </div>
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <Database className="w-5 h-5 text-primary" />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-text-muted text-sm mb-1">Used Space</div>
+                      <div className="text-2xl font-bold text-text-primary">
+                        {formatBytes(totalStats.used)}
+                      </div>
+                      <div className="text-sm text-text-muted mt-1">
+                        {(totalUsedFraction * 100).toFixed(1)}% used
+                      </div>
+                    </div>
+                    <div className="p-3 bg-warning/10 rounded-lg">
+                      <HardDrive className="w-5 h-5 text-warning" />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-text-muted text-sm mb-1">Available Space</div>
+                      <div className="text-2xl font-bold text-text-primary">
+                        {formatBytes(totalStats.avail)}
+                      </div>
+                      <div className="text-sm text-text-muted mt-1">
+                        Ready to use
+                      </div>
+                    </div>
+                    <div className="p-3 bg-success/10 rounded-lg">
+                      <CheckCircle2 className="w-5 h-5 text-success" />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-text-muted text-sm mb-1">Active Stores</div>
+                      <div className="text-2xl font-bold text-text-primary">
+                        {storages.filter(s => s.active).length}
+                      </div>
+                      <div className="text-sm text-text-muted mt-1">
+                        of {storages.length}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-info/10 rounded-lg">
+                      <Database className="w-5 h-5 text-info" />
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Storage List */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Storage Datastores</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {storages.map((storage) => (
+                      <div
+                        key={storage.storage}
+                        className="p-4 rounded-lg border border-border bg-surface hover:bg-surface-elevated transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg bg-surface-elevated ${getStorageTypeColor(storage.type)}`}>
+                              <Database className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-text-primary text-sm">
+                                  {storage.storage}
+                                </h3>
+                                <Badge variant="default" className="text-xs">
+                                  {storage.type}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-text-muted mt-1">
+                                {storage.content}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {storage.enabled !== false ? (
+                              <Badge variant="success" className="text-xs">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Enabled
+                              </Badge>
+                            ) : (
+                              <Badge variant="default" className="text-xs">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Disabled
+                              </Badge>
+                            )}
+                            {storage.active !== false && (
+                              <Badge variant="success" className="text-xs">Active</Badge>
+                            )}
+                            {storage.shared && (
+                              <Badge variant="info" className="text-xs">Shared</Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Storage Usage Bar */}
+                        {storage.total && storage.total > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-text-muted">Usage</span>
+                              <span className="text-text-primary font-medium">
+                                {formatBytes(storage.used || 0)} / {formatBytes(storage.total)}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${getUsageColor(storage.used_fraction)}`}
+                                style={{ width: `${(storage.used_fraction || 0) * 100}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-text-muted">
+                              <span>
+                                {storage.used_fraction !== undefined
+                                  ? `${(storage.used_fraction * 100).toFixed(1)}% used`
+                                  : 'N/A'}
+                              </span>
+                              <span>
+                                {formatBytes(storage.avail || 0)} available
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Volumes Section */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-text-primary">Volumes</h2>
       </div>
 
       {/* Filter Tabs */}

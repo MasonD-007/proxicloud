@@ -170,3 +170,24 @@ export interface AssignProjectRequest {
   project_id: string; // Empty string means "No Project"
 }
 
+export interface Storage {
+  storage: string;      // The storage identifier
+  type: string;         // Storage type (dir, lvm, zfs, etc.)
+  content: string;      // Allowed storage content types
+  active?: boolean;     // Set when storage is accessible
+  enabled?: boolean;    // Set when storage is enabled (not disabled)
+  avail?: number;       // Available storage space in bytes
+  total?: number;       // Total storage space in bytes
+  used?: number;        // Used storage space in bytes
+  used_fraction?: number; // Used fraction (used/total)
+  shared?: boolean;     // Shared flag from storage configuration
+}
+
+export interface GetStorageRequest {
+  content?: string;   // Only list stores which support this content type
+  enabled?: boolean;  // Only list stores which are enabled
+  format?: boolean;   // Include information about formats
+  storage?: string;   // Only list status for specified storage
+  target?: string;    // If target is different to 'node'
+}
+

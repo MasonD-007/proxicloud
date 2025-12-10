@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest, ProjectContainersResponse } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest, ProjectContainersResponse, Storage, GetStorageRequest } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -379,5 +379,24 @@ export async function assignContainerProject(vmid: number, data: AssignProjectRe
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// Storage
+export async function getStorage(params?: GetStorageRequest): Promise<Storage[]> {
+  let endpoint = '/storage';
+  
+  if (params) {
+    const queryParams = new URLSearchParams();
+    if (params.content) queryParams.append('content', params.content);
+    if (params.enabled !== undefined) queryParams.append('enabled', params.enabled ? '1' : '0');
+    if (params.format !== undefined) queryParams.append('format', params.format ? '1' : '0');
+    if (params.storage) queryParams.append('storage', params.storage);
+    if (params.target) queryParams.append('target', params.target);
+    
+    const query = queryParams.toString();
+    if (query) endpoint += `?${query}`;
+  }
+  
+  return fetchAPI(endpoint);
 }
 

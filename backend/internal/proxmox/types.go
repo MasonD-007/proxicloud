@@ -140,6 +140,29 @@ type AssignProjectRequest struct {
 	ProjectID string `json:"project_id"` // Empty string means "No Project"
 }
 
+// Storage represents a Proxmox storage datastore
+type Storage struct {
+	Storage      string   `json:"storage"`                 // The storage identifier
+	Type         string   `json:"type"`                    // Storage type
+	Content      string   `json:"content"`                 // Allowed storage content types
+	Active       *bool    `json:"active,omitempty"`        // Set when storage is accessible
+	Enabled      *bool    `json:"enabled,omitempty"`       // Set when storage is enabled (not disabled)
+	Avail        *int64   `json:"avail,omitempty"`         // Available storage space in bytes
+	Total        *int64   `json:"total,omitempty"`         // Total storage space in bytes
+	Used         *int64   `json:"used,omitempty"`          // Used storage space in bytes
+	UsedFraction *float64 `json:"used_fraction,omitempty"` // Used fraction (used/total)
+	Shared       *bool    `json:"shared,omitempty"`        // Shared flag from storage configuration
+}
+
+// GetStorageRequest holds optional parameters for querying storage
+type GetStorageRequest struct {
+	Content string `json:"content,omitempty"` // Only list stores which support this content type
+	Enabled *bool  `json:"enabled,omitempty"` // Only list stores which are enabled
+	Format  *bool  `json:"format,omitempty"`  // Include information about formats
+	Storage string `json:"storage,omitempty"` // Only list status for specified storage
+	Target  string `json:"target,omitempty"`  // If target is different to 'node', we only lists shared storages
+}
+
 // ProxmoxResponse is the generic response from Proxmox API
 type ProxmoxResponse struct {
 	Data json.RawMessage `json:"data"`
