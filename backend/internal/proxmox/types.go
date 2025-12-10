@@ -145,13 +145,84 @@ type Storage struct {
 	Storage      string   `json:"storage"`                 // The storage identifier
 	Type         string   `json:"type"`                    // Storage type
 	Content      string   `json:"content"`                 // Allowed storage content types
-	Active       *bool    `json:"active,omitempty"`        // Set when storage is accessible
-	Enabled      *bool    `json:"enabled,omitempty"`       // Set when storage is enabled (not disabled)
+	Active       *bool    `json:"-"`                       // Set when storage is accessible (parsed manually)
+	Enabled      *bool    `json:"-"`                       // Set when storage is enabled (parsed manually)
 	Avail        *int64   `json:"avail,omitempty"`         // Available storage space in bytes
 	Total        *int64   `json:"total,omitempty"`         // Total storage space in bytes
 	Used         *int64   `json:"used,omitempty"`          // Used storage space in bytes
 	UsedFraction *float64 `json:"used_fraction,omitempty"` // Used fraction (used/total)
-	Shared       *bool    `json:"shared,omitempty"`        // Shared flag from storage configuration
+	Shared       *bool    `json:"-"`                       // Shared flag from storage configuration (parsed manually)
+}
+
+// UnmarshalJSON custom unmarshaler for Storage to handle bool/int fields
+func (s *Storage) UnmarshalJSON(data []byte) error {
+	// First unmarshal into a map to handle raw values
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Parse string fields
+	if v, ok := raw["storage"].(string); ok {
+		s.Storage = v
+	}
+	if v, ok := raw["type"].(string); ok {
+		s.Type = v
+	}
+	if v, ok := raw["content"].(string); ok {
+		s.Content = v
+	}
+
+	// Parse numeric fields
+	if v, ok := raw["avail"].(float64); ok {
+		val := int64(v)
+		s.Avail = &val
+	}
+	if v, ok := raw["total"].(float64); ok {
+		val := int64(v)
+		s.Total = &val
+	}
+	if v, ok := raw["used"].(float64); ok {
+		val := int64(v)
+		s.Used = &val
+	}
+	if v, ok := raw["used_fraction"].(float64); ok {
+		s.UsedFraction = &v
+	}
+
+	// Parse Active field (can be bool or int)
+	if v, ok := raw["active"]; ok {
+		s.Active = parseBoolOrIntValue(v)
+	}
+
+	// Parse Enabled field (can be bool or int)
+	if v, ok := raw["enabled"]; ok {
+		s.Enabled = parseBoolOrIntValue(v)
+	}
+
+	// Parse Shared field (can be bool or int)
+	if v, ok := raw["shared"]; ok {
+		s.Shared = parseBoolOrIntValue(v)
+	}
+
+	return nil
+}
+
+// parseBoolOrIntValue parses a value that can be either a bool or an int (0/1)
+func parseBoolOrIntValue(v interface{}) *bool {
+	// Check if it's a bool
+	if b, ok := v.(bool); ok {
+		return &b
+	}
+
+	// Check if it's a number (float64 is the JSON number type)
+	if n, ok := v.(float64); ok {
+		val := n != 0
+		return &val
+	}
+
+	// Failed to parse, return nil
+	return nil
 }
 
 // GetStorageRequest holds optional parameters for querying storage
