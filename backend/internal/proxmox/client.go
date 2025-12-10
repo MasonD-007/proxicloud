@@ -561,8 +561,17 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 					vol.Status = "in-use"
 					vol.AttachedTo = &vmid
 					vol.MountPoint = attachment.MountPoint
+
+					// Try to get disk usage if not already set
+					if vol.Used == 0 {
+						diskUsed := c.getVolumeUsageFromContainer(vmid, attachment.MountPoint)
+						if diskUsed > 0 {
+							vol.Used = diskUsed / (1024 * 1024 * 1024) // Convert bytes to GB
+						}
+					}
+
 					volumeMap[volid] = vol
-					fmt.Printf("[DEBUG] Volume %s now attached to: %d\n", volid, *vol.AttachedTo)
+					fmt.Printf("[DEBUG] Volume %s now attached to: %d, used: %d GB\n", volid, *vol.AttachedTo, vol.Used)
 				} else {
 					// Volume not found in storage list, add it now
 					// Parse storage from volid
@@ -604,8 +613,15 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 						AttachedTo: &vmid,
 						MountPoint: attachment.MountPoint,
 					}
+
+					// Try to get disk usage
+					diskUsed := c.getVolumeUsageFromContainer(vmid, attachment.MountPoint)
+					if diskUsed > 0 {
+						volume.Used = diskUsed / (1024 * 1024 * 1024) // Convert bytes to GB
+					}
+
 					volumeMap[volid] = volume
-					fmt.Printf("[INFO] Discovered volume %s from container %d config, attached_to=%d\n", volid, container.VMID, vmid)
+					fmt.Printf("[INFO] Discovered volume %s from container %d config, attached_to=%d, used=%d GB\n", volid, container.VMID, vmid, volume.Used)
 				}
 			}
 		}
@@ -709,26 +725,46 @@ func (c *Client) GetVolume(volid string) (*Volume, error) {
 		return nil, fmt.Errorf("failed to get volume: %w", err)
 	}
 
+	// Parse the response with flexible field handling
 	var response struct {
-		Data struct {
-			VolID  string `json:"volid"`
-			Size   int64  `json:"size"`
-			Format string `json:"format"`
-			Used   int64  `json:"used"`
-		} `json:"data"`
+		Data map[string]interface{} `json:"data"`
 	}
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse volume response: %w", err)
 	}
 
+	// Extract basic fields
+	var volumeID string
+	var size int64
+	var used int64
+	var format string
+
+	if v, ok := response.Data["volid"].(string); ok {
+		volumeID = v
+	}
+	if v, ok := response.Data["size"].(float64); ok {
+		size = int64(v)
+	}
+	if v, ok := response.Data["format"].(string); ok {
+		format = v
+	}
+
+	// Try to get 'used' field (may not be present for all storage types)
+	if v, ok := response.Data["used"].(float64); ok {
+		used = int64(v)
+		fmt.Printf("[DEBUG] GetVolume: found 'used' field in API response: %d bytes\n", used)
+	} else {
+		fmt.Printf("[DEBUG] GetVolume: 'used' field not present in API response\n")
+	}
+
 	volume := &Volume{
-		VolID:   response.Data.VolID,
-		Name:    extractVolumeName(response.Data.VolID),
-		Size:    response.Data.Size / (1024 * 1024 * 1024), // Convert bytes to GB
-		Used:    response.Data.Used / (1024 * 1024 * 1024), // Convert bytes to GB
+		VolID:   volumeID,
+		Name:    extractVolumeName(volumeID),
+		Size:    size / (1024 * 1024 * 1024), // Convert bytes to GB
+		Used:    used / (1024 * 1024 * 1024), // Convert bytes to GB (will be 0 if not present)
 		Node:    c.node,
 		Storage: storage,
-		Format:  response.Data.Format,
+		Format:  format,
 		Status:  "available",
 	}
 
@@ -753,12 +789,54 @@ func (c *Client) GetVolume(volid string) (*Volume, error) {
 				volume.AttachedTo = &vmid
 				volume.MountPoint = attachment.MountPoint
 				fmt.Printf("[DEBUG] Volume %s is attached to container %d at %s\n", volid, vmid, attachment.MountPoint)
+
+				// If used space is not available from the API, try to get it from container stats
+				if volume.Used == 0 {
+					diskUsed := c.getVolumeUsageFromContainer(vmid, attachment.MountPoint)
+					if diskUsed > 0 {
+						volume.Used = diskUsed / (1024 * 1024 * 1024) // Convert bytes to GB
+						fmt.Printf("[DEBUG] Got volume usage from container stats: %d GB\n", volume.Used)
+					}
+				}
 				break // Found attachment, no need to check other containers
 			}
 		}
 	}
 
+	fmt.Printf("[DEBUG] GetVolume final result - Size: %d GB, Used: %d GB\n", volume.Size, volume.Used)
 	return volume, nil
+}
+
+// getVolumeUsageFromContainer attempts to get disk usage for a volume from container stats
+func (c *Client) getVolumeUsageFromContainer(vmid int, mountPoint string) int64 {
+	// For rootfs, we can get usage from container stats
+	if mountPoint == "rootfs" {
+		statsPath := fmt.Sprintf("/nodes/%s/lxc/%d/status/current", c.node, vmid)
+		statsBody, err := c.doRequest("GET", statsPath, nil)
+		if err != nil {
+			fmt.Printf("[DEBUG] Failed to get container stats: %v\n", err)
+			return 0
+		}
+
+		var statsResponse struct {
+			Data struct {
+				Disk    int64 `json:"disk"`    // Current disk usage in bytes
+				MaxDisk int64 `json:"maxdisk"` // Maximum disk size in bytes
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(statsBody, &statsResponse); err != nil {
+			return 0
+		}
+
+		fmt.Printf("[DEBUG] Container %d rootfs disk usage: %d bytes (max: %d bytes)\n", vmid, statsResponse.Data.Disk, statsResponse.Data.MaxDisk)
+		return statsResponse.Data.Disk
+	}
+
+	// For mount points (mp0-mp9), we cannot easily get individual usage from Proxmox API
+	// The disk usage in container stats only reflects rootfs
+	// Would need to exec into container and run 'df' command to get mount point usage
+	fmt.Printf("[DEBUG] Cannot get disk usage for mount point %s without executing commands in container\n", mountPoint)
+	return 0
 }
 
 // DeleteVolume deletes a volume

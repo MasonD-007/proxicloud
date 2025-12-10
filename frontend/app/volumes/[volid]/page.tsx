@@ -289,15 +289,25 @@ export default function VolumeDetailPage() {
             <div className="text-2xl font-bold text-text-primary">
               {volume.used > 0 ? `${volume.used} GB` : '0 GB'}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-surface-elevated rounded-full h-2">
-                <div
-                  className="bg-primary rounded-full h-2 transition-all"
-                  style={{ width: `${usagePercent}%` }}
-                />
+            {volume.used > 0 ? (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-surface-elevated rounded-full h-2">
+                  <div
+                    className="bg-primary rounded-full h-2 transition-all"
+                    style={{ width: `${usagePercent}%` }}
+                  />
+                </div>
+                <span className="text-text-muted text-xs">{usagePercent}%</span>
               </div>
-              <span className="text-text-muted text-xs">{usagePercent}%</span>
-            </div>
+            ) : (
+              <div className="text-text-muted text-xs">
+                {volume.status === 'in-use' && volume.mountpoint !== 'rootfs'
+                  ? 'Usage data unavailable for mount points'
+                  : volume.status === 'available'
+                  ? 'Not yet in use'
+                  : 'No usage data available'}
+              </div>
+            )}
           </div>
         </Card>
 
