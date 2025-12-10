@@ -732,6 +732,32 @@ func (c *Client) GetVolume(volid string) (*Volume, error) {
 		Status:  "available",
 	}
 
+	// Check if volume is attached to any container
+	containers, err := c.GetContainers()
+	if err != nil {
+		fmt.Printf("[WARNING] Failed to get containers for volume attachment check: %v\n", err)
+		// Continue anyway, just won't have attachment info
+	} else {
+		// For each container, get its config to check for attached volumes
+		for _, container := range containers {
+			attachments, err := c.getContainerVolumeAttachments(container.VMID)
+			if err != nil {
+				fmt.Printf("[WARNING] Failed to get volume attachments for container %d: %v\n", container.VMID, err)
+				continue
+			}
+
+			// Check if our volume is in the attachments
+			if attachment, found := attachments[volid]; found {
+				vmid := container.VMID
+				volume.Status = "in-use"
+				volume.AttachedTo = &vmid
+				volume.MountPoint = attachment.MountPoint
+				fmt.Printf("[DEBUG] Volume %s is attached to container %d at %s\n", volid, vmid, attachment.MountPoint)
+				break // Found attachment, no need to check other containers
+			}
+		}
+	}
+
 	return volume, nil
 }
 
