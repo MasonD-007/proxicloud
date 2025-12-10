@@ -859,6 +859,12 @@ func (c *Client) CreateSnapshot(volid string, req CreateSnapshotRequest) (*Snaps
 	}
 	storage := parts[0]
 
+	// Check if storage supports snapshots
+	// LVM-thin (local-lvm) doesn't support volume-level snapshots via this API
+	if storage == "local-lvm" || storage == "local" {
+		return nil, fmt.Errorf("storage type '%s' does not support volume-level snapshots. Use ZFS or another snapshot-capable storage backend", storage)
+	}
+
 	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot", c.node, storage, volid)
 	fmt.Printf("[DEBUG] CreateSnapshot: requesting path=%s\n", path)
 
@@ -901,11 +907,26 @@ func (c *Client) GetSnapshots(volid string) ([]Snapshot, error) {
 	}
 	storage := parts[0]
 
+	// Check if storage supports snapshots
+	// LVM-thin (local-lvm) doesn't support volume-level snapshots via this API
+	// Only ZFS and some other storage types support this
+	if storage == "local-lvm" || storage == "local" {
+		fmt.Printf("[INFO] GetSnapshots: storage type '%s' does not support volume-level snapshots\n", storage)
+		return []Snapshot{}, nil // Return empty list, not an error
+	}
+
 	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshots", c.node, storage, volid)
 	fmt.Printf("[DEBUG] GetSnapshots: requesting path=%s\n", path)
 
 	respBody, err := c.doRequest("GET", path, nil)
 	if err != nil {
+		// If we get an error about illegal characters or unsupported operation, return empty list
+		if strings.Contains(err.Error(), "illegal characters") ||
+			strings.Contains(err.Error(), "not supported") ||
+			strings.Contains(err.Error(), "500") {
+			fmt.Printf("[INFO] GetSnapshots: storage does not support snapshots for %s\n", volid)
+			return []Snapshot{}, nil
+		}
 		return nil, fmt.Errorf("failed to get snapshots: %w", err)
 	}
 
@@ -943,6 +964,11 @@ func (c *Client) RestoreSnapshot(volid string, req RestoreSnapshotRequest) error
 	}
 	storage := parts[0]
 
+	// Check if storage supports snapshots
+	if storage == "local-lvm" || storage == "local" {
+		return fmt.Errorf("storage type '%s' does not support volume-level snapshots", storage)
+	}
+
 	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot/%s/rollback", c.node, storage, volid, req.SnapshotName)
 	fmt.Printf("[DEBUG] RestoreSnapshot: requesting path=%s\n", path)
 
@@ -965,6 +991,11 @@ func (c *Client) CloneSnapshot(volid string, req CloneSnapshotRequest) (*Volume,
 	storage := parts[0]
 	if req.Storage != "" {
 		storage = req.Storage
+	}
+
+	// Check if storage supports snapshots
+	if storage == "local-lvm" || storage == "local" {
+		return nil, fmt.Errorf("storage type '%s' does not support volume-level snapshots", storage)
 	}
 
 	path := fmt.Sprintf("/nodes/%s/storage/%s/content/%s/snapshot/%s/clone", c.node, storage, volid, req.SnapshotName)

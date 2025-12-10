@@ -380,14 +380,23 @@ export default function VolumeDetailPage() {
             <Button
               onClick={() => setShowSnapshotForm(!showSnapshotForm)}
               size="sm"
-              disabled={volume.status === 'in-use'}
+              disabled={volume.status === 'in-use' || volume.storage === 'local-lvm' || volume.storage === 'local'}
             >
               <Camera className="w-4 h-4 mr-2" />
               Create Snapshot
             </Button>
           </div>
 
-          {volume.status === 'in-use' && (
+          {(volume.storage === 'local-lvm' || volume.storage === 'local') && (
+            <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-text-secondary">
+                Volume snapshots are not supported on {volume.storage} storage. Use ZFS (local-zfs) or another snapshot-capable storage backend for snapshot functionality.
+              </div>
+            </div>
+          )}
+
+          {volume.status === 'in-use' && volume.storage !== 'local-lvm' && volume.storage !== 'local' && (
             <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
               <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
               <div className="text-sm text-text-secondary">
@@ -440,7 +449,7 @@ export default function VolumeDetailPage() {
           )}
 
           {/* Snapshots List */}
-          {snapshots.length === 0 ? (
+          {snapshots.length === 0 && volume.storage !== 'local-lvm' && volume.storage !== 'local' ? (
             <div className="text-center py-12 text-text-muted">
               <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No snapshots yet</p>
@@ -448,7 +457,7 @@ export default function VolumeDetailPage() {
                 Create snapshots to save the current state of your volume
               </p>
             </div>
-          ) : (
+          ) : snapshots.length === 0 ? null : (
             <div className="space-y-2">
               {snapshots.map((snapshot) => (
                 <div
