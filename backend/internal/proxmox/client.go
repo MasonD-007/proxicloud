@@ -485,7 +485,8 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 	// Query multiple storage pools
 	storageLocations := []string{"local-lvm", "local-zfs"}
 
-	var allVolumes []Volume
+	// Use a map to track unique volumes by volid
+	volumeMap := make(map[string]Volume)
 
 	for _, storage := range storageLocations {
 		path := fmt.Sprintf("/nodes/%s/storage/%s/content", c.node, storage)
@@ -522,12 +523,13 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 					Format:  item.Format,
 					Status:  "available", // Default status
 				}
-				allVolumes = append(allVolumes, volume)
+				volumeMap[item.VolID] = volume
 			}
 		}
 	}
 
 	// Now check all containers to see which volumes are attached
+	// This will also discover volumes that weren't in the storage content list
 	containers, err := c.GetContainers()
 	if err != nil {
 		fmt.Printf("[WARNING] Failed to get containers for volume attachment check: %v\n", err)
@@ -541,15 +543,65 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 				continue
 			}
 
-			// Update volume status and attachment info
-			for i := range allVolumes {
-				if attachment, found := attachments[allVolumes[i].VolID]; found {
-					allVolumes[i].Status = "in-use"
-					allVolumes[i].AttachedTo = &container.VMID
-					allVolumes[i].MountPoint = attachment.MountPoint
+			// Process all attachments found in container config
+			for volid, attachment := range attachments {
+				if vol, exists := volumeMap[volid]; exists {
+					// Update existing volume with attachment info
+					vol.Status = "in-use"
+					vol.AttachedTo = &container.VMID
+					vol.MountPoint = attachment.MountPoint
+					volumeMap[volid] = vol
+				} else {
+					// Volume not found in storage list, add it now
+					// Parse storage from volid
+					parts := strings.SplitN(volid, ":", 2)
+					storage := "unknown"
+					if len(parts) == 2 {
+						storage = parts[0]
+					}
+
+					// Try to get size info from storage API
+					size := int64(0)
+					format := "raw"
+					volumePath := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", c.node, storage, volid)
+					respBody, err := c.doRequest("GET", volumePath, nil)
+					if err == nil {
+						var volResponse struct {
+							Data struct {
+								Size   int64  `json:"size"`
+								Format string `json:"format"`
+							} `json:"data"`
+						}
+						if err := json.Unmarshal(respBody, &volResponse); err == nil {
+							size = volResponse.Data.Size / (1024 * 1024 * 1024) // Convert to GB
+							if volResponse.Data.Format != "" {
+								format = volResponse.Data.Format
+							}
+						}
+					}
+
+					volume := Volume{
+						VolID:      volid,
+						Name:       extractVolumeName(volid),
+						Size:       size,
+						Node:       c.node,
+						Storage:    storage,
+						Format:     format,
+						Status:     "in-use",
+						AttachedTo: &container.VMID,
+						MountPoint: attachment.MountPoint,
+					}
+					volumeMap[volid] = volume
+					fmt.Printf("[INFO] Discovered volume %s from container %d config\n", volid, container.VMID)
 				}
 			}
 		}
+	}
+
+	// Convert map to slice
+	allVolumes := make([]Volume, 0, len(volumeMap))
+	for _, vol := range volumeMap {
+		allVolumes = append(allVolumes, vol)
 	}
 
 	fmt.Printf("[INFO] GetVolumes: returning %d total volumes\n", len(allVolumes))
