@@ -29,7 +29,8 @@ export default function ContainerDetailPage() {
   useEffect(() => {
     if (vmid) {
       loadData();
-      const interval = setInterval(loadData, 5000); // Refresh every 5 seconds
+      // Only refresh container status, not volumes (volumes change less frequently)
+      const interval = setInterval(loadContainerStatus, 5000); // Refresh container status every 5 seconds
       return () => clearInterval(interval);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,6 +49,17 @@ export default function ContainerDetailPage() {
       setError(err instanceof Error ? err.message : 'Failed to load container');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadContainerStatus() {
+    try {
+      // Only refresh container status, not volumes
+      const containerData = await getContainer(vmid);
+      setContainer(containerData);
+    } catch (err) {
+      // Silently fail for background updates
+      console.error('Failed to refresh container status:', err);
     }
   }
 
@@ -423,36 +435,55 @@ export default function ContainerDetailPage() {
             <div className="space-y-2">
               {volumes
                 .filter((v) => v.attached_to === vmid)
-                .map((volume) => (
-                  <div
-                    key={volume.volid}
-                    className="flex items-center justify-between p-4 bg-surface-elevated rounded-lg border border-border"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <HardDrive className="w-5 h-5 text-text-muted" />
-                      <div className="flex-1">
-                        <Link href={`/volumes/${encodeURIComponent(volume.volid)}`}>
-                          <div className="font-medium text-primary hover:underline">
-                            {volume.name}
+                .map((volume) => {
+                  const isRootFS = volume.mountpoint === 'rootfs';
+                  return (
+                    <div
+                      key={volume.volid}
+                      className="flex items-center justify-between p-4 bg-surface-elevated rounded-lg border border-border"
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <HardDrive className="w-5 h-5 text-text-muted" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Link href={`/volumes/${encodeURIComponent(volume.volid)}`}>
+                              <div className="font-medium text-primary hover:underline">
+                                {volume.name}
+                              </div>
+                            </Link>
+                            {isRootFS && (
+                              <Badge variant="info" className="text-xs">
+                                Root FS
+                              </Badge>
+                            )}
                           </div>
-                        </Link>
-                        <div className="text-sm text-text-muted">
-                          {volume.size} GB {volume.type.toUpperCase()} on {volume.storage}
-                          {volume.mountpoint && ` • ${volume.mountpoint}`}
+                          <div className="text-sm text-text-muted">
+                            {volume.size > 0 ? `${volume.size} GB` : 'Size unknown'} {volume.type ? volume.type.toUpperCase() : ''} on {volume.storage}
+                            {volume.mountpoint && ` • Mount: ${volume.mountpoint}`}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <button
-                      onClick={() => handleDetachVolume(volume.volid)}
-                      disabled={actionLoading}
-                      className="p-2 text-error hover:bg-error/10 rounded transition-colors disabled:opacity-50"
-                      title="Detach Volume"
-                    >
-                      <Unlink className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                      {isRootFS ? (
+                        <div 
+                          className="p-2 text-text-muted cursor-not-allowed"
+                          title="Root filesystem cannot be detached"
+                        >
+                          <Unlink className="w-4 h-4 opacity-30" />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDetachVolume(volume.volid)}
+                          disabled={actionLoading}
+                          className="p-2 text-error hover:bg-error/10 rounded transition-colors disabled:opacity-50"
+                          title="Detach Volume"
+                        >
+                          <Unlink className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>
