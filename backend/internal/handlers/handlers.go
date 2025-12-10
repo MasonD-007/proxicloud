@@ -387,7 +387,11 @@ func (h *Handler) UploadTemplate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "file field is required")
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
 
 	// Get storage parameter (default to "local")
 	storage := r.FormValue("storage")
@@ -934,10 +938,8 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 
 	// Create a map of existing container VMIDs for quick lookup
 	existingVMIDs := make(map[int]bool)
-	if existingContainers != nil {
-		for _, c := range existingContainers {
-			existingVMIDs[c.VMID] = true
-		}
+	for _, c := range existingContainers {
+		existingVMIDs[c.VMID] = true
 	}
 
 	// Get containers assigned to this project
@@ -1116,20 +1118,22 @@ func (h *Handler) GetStorage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if enabled := r.URL.Query().Get("enabled"); enabled != "" {
-		if enabled == "1" || enabled == "true" {
+		switch enabled {
+		case "1", "true":
 			enabledBool := true
 			req.Enabled = &enabledBool
-		} else if enabled == "0" || enabled == "false" {
+		case "0", "false":
 			enabledBool := false
 			req.Enabled = &enabledBool
 		}
 	}
 
 	if format := r.URL.Query().Get("format"); format != "" {
-		if format == "1" || format == "true" {
+		switch format {
+		case "1", "true":
 			formatBool := true
 			req.Format = &formatBool
-		} else if format == "0" || format == "false" {
+		case "0", "false":
 			formatBool := false
 			req.Format = &formatBool
 		}

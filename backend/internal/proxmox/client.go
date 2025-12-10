@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -111,7 +112,11 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 		fmt.Printf("[ERROR] Proxmox API request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -409,7 +414,11 @@ func (c *Client) UploadTemplate(storage string, filename string, fileData []byte
 		fmt.Printf("[ERROR] Proxmox API upload request failed: %v\n", err)
 		return fmt.Errorf("failed to execute upload request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

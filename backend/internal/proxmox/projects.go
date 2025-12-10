@@ -101,7 +101,7 @@ func (ps *ProjectStore) save() error {
 	}
 
 	if err := os.Rename(tmpFile, ps.filePath); err != nil {
-		os.Remove(tmpFile)
+		_ = os.Remove(tmpFile)
 		return fmt.Errorf("failed to rename temp file: %v", err)
 	}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Server } from 'lucide-react';
 import Link from 'next/link';
@@ -50,49 +50,6 @@ export default function CreateContainerPage() {
     loadProjects();
   }, []);
 
-  // Load project details if project_id is in query params
-  useEffect(() => {
-    if (projectIdParam && projects.length > 0) {
-      loadProjectDetails(projectIdParam);
-    }
-  }, [projectIdParam, projects]);
-
-  async function loadProjectDetails(projectId: string) {
-    try {
-      const project = await getProject(projectId);
-      setSelectedProject(project);
-      
-      // Set project_id in form
-      handleInputChange('project_id', projectId);
-      
-      // Auto-populate network settings if project has network config
-      if (project.network) {
-        setUseDHCP(false);
-        
-        // Calculate next available IP from subnet if provided
-        if (project.network.subnet) {
-          // Extract base IP from subnet (e.g., "192.168.1.0/24" -> "192.168.1.")
-          const subnetParts = project.network.subnet.split('/')[0].split('.');
-          if (subnetParts.length === 4) {
-            // Suggest the next IP (e.g., 192.168.1.10/24)
-            const suggestedIP = `${subnetParts[0]}.${subnetParts[1]}.${subnetParts[2]}.10/${project.network.subnet.split('/')[1]}`;
-            handleInputChange('ip_address', suggestedIP);
-          }
-        }
-        
-        if (project.network.gateway) {
-          handleInputChange('gateway', project.network.gateway);
-        }
-        
-        if (project.network.nameserver) {
-          handleInputChange('nameserver', project.network.nameserver);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load project details:', err);
-    }
-  }
-
   async function loadTemplates() {
     try {
       setTemplatesLoading(true);
@@ -119,6 +76,50 @@ export default function CreateContainerPage() {
       setProjectsLoading(false);
     }
   }
+
+  const loadProjectDetails = useCallback(async (projectId: string) => {
+    try {
+      const project = await getProject(projectId);
+      setSelectedProject(project);
+      
+      // Set project_id in form
+      setFormData((prev) => ({ ...prev, project_id: projectId }));
+      
+      // Auto-populate network settings if project has network config
+      if (project.network) {
+        setUseDHCP(false);
+        
+        // Calculate next available IP from subnet if provided
+        if (project.network.subnet) {
+          // Extract base IP from subnet (e.g., "192.168.1.0/24" -> "192.168.1.")
+          const subnetParts = project.network.subnet.split('/')[0].split('.');
+          if (subnetParts.length === 4) {
+            // Suggest the next IP (e.g., 192.168.1.10/24)
+            const suggestedIP = `${subnetParts[0]}.${subnetParts[1]}.${subnetParts[2]}.10/${project.network.subnet.split('/')[1]}`;
+            setFormData((prev) => ({ ...prev, ip_address: suggestedIP }));
+          }
+        }
+        
+        if (project.network.gateway) {
+          setFormData((prev) => ({ ...prev, gateway: project.network.gateway }));
+        }
+        
+        if (project.network.nameserver) {
+          setFormData((prev) => ({ ...prev, nameserver: project.network.nameserver }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load project details:', err);
+    }
+  }, []);
+
+  // Load project details if project_id is in query params
+  useEffect(() => {
+    if (projectIdParam && projects.length > 0) {
+      loadProjectDetails(projectIdParam);
+    }
+  }, [projectIdParam, projects, loadProjectDetails]);
+
 
   function validateForm(): boolean {
     const newErrors: Record<string, string> = {};
