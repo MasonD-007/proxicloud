@@ -131,11 +131,19 @@ export interface CloneSnapshotRequest {
   storage?: string;
 }
 
+export interface ProjectNetwork {
+  subnet?: string;      // CIDR notation (e.g., "192.168.1.0/24")
+  gateway?: string;     // Gateway IP (e.g., "192.168.1.1")
+  nameserver?: string;  // DNS server (e.g., "8.8.8.8")
+  vlan_tag?: number;    // Optional VLAN tag
+}
+
 export interface Project {
   id: string;
   name: string;
   description?: string;
   tags?: string[];
+  network?: ProjectNetwork;
   container_count: number;
   created_at: number; // Unix timestamp
   updated_at: number; // Unix timestamp
@@ -158,12 +166,14 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   tags?: string[];
+  network?: ProjectNetwork;
 }
 
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
   tags?: string[];
+  network?: ProjectNetwork;
 }
 
 export interface AssignProjectRequest {

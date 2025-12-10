@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Trash2, Play, Square, RotateCw } from 'lucide-react';
+import { ArrowLeft, Trash2, Play, Square, RotateCw, Plus, Network } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -202,10 +202,57 @@ export default function ProjectDetailsPage() {
         </Card>
       </div>
 
+      {/* Network Configuration */}
+      {project.network && (
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <Network className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-semibold text-text-primary">Network Configuration</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {project.network.subnet && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">Subnet</div>
+                <div className="text-text-primary font-mono">{project.network.subnet}</div>
+              </div>
+            )}
+            {project.network.gateway && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">Gateway</div>
+                <div className="text-text-primary font-mono">{project.network.gateway}</div>
+              </div>
+            )}
+            {project.network.nameserver && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">DNS Nameserver</div>
+                <div className="text-text-primary font-mono">{project.network.nameserver}</div>
+              </div>
+            )}
+            {project.network.vlan_tag && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">VLAN Tag</div>
+                <div className="text-text-primary font-mono">{project.network.vlan_tag}</div>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 p-3 bg-background-elevated rounded-lg">
+            <p className="text-sm text-text-muted">
+              <span className="text-primary font-medium">Note:</span> New containers created in this project will automatically use these network settings.
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Containers List */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-text-primary">Containers</h2>
+          <Link href={`/containers/create?project_id=${projectId}`}>
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Container
+            </Button>
+          </Link>
         </div>
 
         {containers.length === 0 ? (

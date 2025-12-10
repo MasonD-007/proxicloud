@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Network } from 'lucide-react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -18,8 +18,10 @@ export default function CreateProjectPage() {
     name: '',
     description: '',
     tags: [],
+    network: undefined,
   });
   const [tagInput, setTagInput] = useState('');
+  const [enableNetwork, setEnableNetwork] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -136,6 +138,122 @@ export default function CreateProjectPage() {
                     </button>
                   </span>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Network Configuration Section */}
+          <div className="border-t border-border pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Network className="w-5 h-5 text-primary" />
+                <label className="text-sm font-medium text-text-primary">
+                  Network Configuration (Optional)
+                </label>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableNetwork}
+                  onChange={(e) => {
+                    setEnableNetwork(e.target.checked);
+                    if (!e.target.checked) {
+                      setFormData({ ...formData, network: undefined });
+                    } else {
+                      setFormData({ 
+                        ...formData, 
+                        network: { subnet: '', gateway: '', nameserver: '' } 
+                      });
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-text-secondary">Enable</span>
+              </label>
+            </div>
+
+            {enableNetwork && (
+              <div className="space-y-4 pl-7">
+                <p className="text-sm text-text-muted mb-4">
+                  Configure a default network for this project. New containers will automatically use these settings.
+                </p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    Subnet (CIDR)
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.network?.subnet || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      network: { ...formData.network, subnet: e.target.value } 
+                    })}
+                    placeholder="e.g., 192.168.1.0/24"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    The network subnet in CIDR notation
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    Gateway
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.network?.gateway || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      network: { ...formData.network, gateway: e.target.value } 
+                    })}
+                    placeholder="e.g., 192.168.1.1"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    Default gateway for containers in this project
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    DNS Nameserver
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.network?.nameserver || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      network: { ...formData.network, nameserver: e.target.value } 
+                    })}
+                    placeholder="e.g., 8.8.8.8"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    DNS server for name resolution
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    VLAN Tag (Optional)
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="4094"
+                    value={formData.network?.vlan_tag || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      network: { 
+                        ...formData.network, 
+                        vlan_tag: e.target.value ? parseInt(e.target.value) : undefined 
+                      } 
+                    })}
+                    placeholder="e.g., 100"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    VLAN tag for network isolation (1-4094)
+                  </p>
+                </div>
               </div>
             )}
           </div>

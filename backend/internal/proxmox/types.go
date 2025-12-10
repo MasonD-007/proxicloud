@@ -111,28 +111,39 @@ type CloneSnapshotRequest struct {
 	Storage      string `json:"storage,omitempty"` // Optional: different storage pool
 }
 
+// ProjectNetwork represents network configuration for a project
+type ProjectNetwork struct {
+	Subnet     string `json:"subnet,omitempty"`     // CIDR notation (e.g., "192.168.1.0/24")
+	Gateway    string `json:"gateway,omitempty"`    // Gateway IP (e.g., "192.168.1.1")
+	Nameserver string `json:"nameserver,omitempty"` // DNS server (e.g., "8.8.8.8")
+	VLanTag    int    `json:"vlan_tag,omitempty"`   // Optional VLAN tag
+}
+
 // Project represents a logical grouping of containers
 type Project struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	CreatedAt   int64    `json:"created_at"`
-	UpdatedAt   int64    `json:"updated_at"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
+	Network     *ProjectNetwork `json:"network,omitempty"`
+	CreatedAt   int64           `json:"created_at"`
+	UpdatedAt   int64           `json:"updated_at"`
 }
 
 // CreateProjectRequest holds parameters for creating a new project
 type CreateProjectRequest struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
+	Network     *ProjectNetwork `json:"network,omitempty"`
 }
 
 // UpdateProjectRequest holds parameters for updating a project
 type UpdateProjectRequest struct {
-	Name        string   `json:"name,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
+	Network     *ProjectNetwork `json:"network,omitempty"`
 }
 
 // AssignProjectRequest holds parameters for assigning a container to a project

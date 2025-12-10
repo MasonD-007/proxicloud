@@ -1,21 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Server } from 'lucide-react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { createContainer, getTemplates, getProjects } from '@/lib/api';
+import { createContainer, getTemplates, getProjects, getProject } from '@/lib/api';
 import type { CreateContainerRequest, Template, Project } from '@/lib/types';
 
 export default function CreateContainerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get('project_id');
+  
   const [loading, setLoading] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +49,49 @@ export default function CreateContainerPage() {
     loadTemplates();
     loadProjects();
   }, []);
+
+  // Load project details if project_id is in query params
+  useEffect(() => {
+    if (projectIdParam && projects.length > 0) {
+      loadProjectDetails(projectIdParam);
+    }
+  }, [projectIdParam, projects]);
+
+  async function loadProjectDetails(projectId: string) {
+    try {
+      const project = await getProject(projectId);
+      setSelectedProject(project);
+      
+      // Set project_id in form
+      handleInputChange('project_id', projectId);
+      
+      // Auto-populate network settings if project has network config
+      if (project.network) {
+        setUseDHCP(false);
+        
+        // Calculate next available IP from subnet if provided
+        if (project.network.subnet) {
+          // Extract base IP from subnet (e.g., "192.168.1.0/24" -> "192.168.1.")
+          const subnetParts = project.network.subnet.split('/')[0].split('.');
+          if (subnetParts.length === 4) {
+            // Suggest the next IP (e.g., 192.168.1.10/24)
+            const suggestedIP = `${subnetParts[0]}.${subnetParts[1]}.${subnetParts[2]}.10/${project.network.subnet.split('/')[1]}`;
+            handleInputChange('ip_address', suggestedIP);
+          }
+        }
+        
+        if (project.network.gateway) {
+          handleInputChange('gateway', project.network.gateway);
+        }
+        
+        if (project.network.nameserver) {
+          handleInputChange('nameserver', project.network.nameserver);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load project details:', err);
+    }
+  }
 
   async function loadTemplates() {
     try {
@@ -382,6 +429,31 @@ export default function CreateContainerPage() {
 
         <Card>
           <h2 className="text-xl font-semibold text-text-primary mb-4">Network Configuration</h2>
+          
+          {selectedProject?.network && (
+            <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg">
+              <div className="flex items-start gap-2">
+                <div className="text-primary font-medium text-sm">
+                  Project Network Settings
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-text-secondary space-y-1">
+                {selectedProject.network.subnet && (
+                  <div>Subnet: <span className="font-mono text-text-primary">{selectedProject.network.subnet}</span></div>
+                )}
+                {selectedProject.network.gateway && (
+                  <div>Gateway: <span className="font-mono text-text-primary">{selectedProject.network.gateway}</span></div>
+                )}
+                {selectedProject.network.nameserver && (
+                  <div>DNS: <span className="font-mono text-text-primary">{selectedProject.network.nameserver}</span></div>
+                )}
+              </div>
+              <p className="text-xs text-text-muted mt-2">
+                Network settings have been auto-populated from the project configuration. You can modify them below if needed.
+              </p>
+            </div>
+          )}
+          
           <div className="space-y-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <input

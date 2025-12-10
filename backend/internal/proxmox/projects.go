@@ -137,6 +137,7 @@ func (ps *ProjectStore) CreateProject(req CreateProjectRequest) (*Project, error
 		Name:        req.Name,
 		Description: req.Description,
 		Tags:        req.Tags,
+		Network:     req.Network,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -201,6 +202,9 @@ func (ps *ProjectStore) UpdateProject(id string, req UpdateProjectRequest) (*Pro
 	}
 	if req.Tags != nil {
 		project.Tags = req.Tags
+	}
+	if req.Network != nil {
+		project.Network = req.Network
 	}
 	project.UpdatedAt = time.Now().Unix()
 
