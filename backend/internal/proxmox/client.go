@@ -200,9 +200,11 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 	// Network configuration
 	// If IP address is provided, configure static IP
 	// Otherwise, use DHCP by default
+	// Format: net0: bridge=vmbr0,name=eth0,firewall=1,ip=...
+	// Note: bridge must come first in the config string
 	if req.IPAddress != "" {
-		// Format: net0: name=eth0,bridge=vmbr0,ip=192.168.1.100/24,gw=192.168.1.1
-		netConfig := "name=eth0,bridge=vmbr0,firewall=1,ip=" + req.IPAddress
+		// Format: net0: bridge=vmbr0,name=eth0,firewall=1,ip=192.168.1.100/24,gw=192.168.1.1
+		netConfig := "bridge=vmbr0,name=eth0,firewall=1,ip=" + req.IPAddress
 
 		if req.Gateway != "" {
 			netConfig += ",gw=" + req.Gateway
@@ -216,7 +218,7 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 		}
 	} else {
 		// Use DHCP if no IP specified
-		params["net0"] = "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp"
+		params["net0"] = "bridge=vmbr0,name=eth0,firewall=1,ip=dhcp"
 	}
 
 	if req.Password != "" {
