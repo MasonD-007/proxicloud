@@ -547,10 +547,12 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 			for volid, attachment := range attachments {
 				if vol, exists := volumeMap[volid]; exists {
 					// Update existing volume with attachment info
+					fmt.Printf("[DEBUG] Updating existing volume %s: attaching to container %d (was: %v)\n", volid, container.VMID, vol.AttachedTo)
 					vol.Status = "in-use"
 					vol.AttachedTo = &container.VMID
 					vol.MountPoint = attachment.MountPoint
 					volumeMap[volid] = vol
+					fmt.Printf("[DEBUG] Volume %s now attached to: %d\n", volid, *vol.AttachedTo)
 				} else {
 					// Volume not found in storage list, add it now
 					// Parse storage from volid
@@ -592,7 +594,7 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 						MountPoint: attachment.MountPoint,
 					}
 					volumeMap[volid] = volume
-					fmt.Printf("[INFO] Discovered volume %s from container %d config\n", volid, container.VMID)
+					fmt.Printf("[INFO] Discovered volume %s from container %d config, attached_to=%d\n", volid, container.VMID, container.VMID)
 				}
 			}
 		}
@@ -602,6 +604,11 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 	allVolumes := make([]Volume, 0, len(volumeMap))
 	for _, vol := range volumeMap {
 		allVolumes = append(allVolumes, vol)
+		if vol.AttachedTo != nil {
+			fmt.Printf("[DEBUG] Final volume %s: attached_to=%d, mountpoint=%s\n", vol.VolID, *vol.AttachedTo, vol.MountPoint)
+		} else {
+			fmt.Printf("[DEBUG] Final volume %s: no attachment\n", vol.VolID)
+		}
 	}
 
 	fmt.Printf("[INFO] GetVolumes: returning %d total volumes\n", len(allVolumes))
