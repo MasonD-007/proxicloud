@@ -527,8 +527,99 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 		}
 	}
 
+	// Now check all containers to see which volumes are attached
+	containers, err := c.GetContainers()
+	if err != nil {
+		fmt.Printf("[WARNING] Failed to get containers for volume attachment check: %v\n", err)
+		// Continue anyway, just won't have attachment info
+	} else {
+		// For each container, get its config to check for attached volumes
+		for _, container := range containers {
+			attachments, err := c.getContainerVolumeAttachments(container.VMID)
+			if err != nil {
+				fmt.Printf("[WARNING] Failed to get volume attachments for container %d: %v\n", container.VMID, err)
+				continue
+			}
+
+			// Update volume status and attachment info
+			for i := range allVolumes {
+				if attachment, found := attachments[allVolumes[i].VolID]; found {
+					allVolumes[i].Status = "in-use"
+					allVolumes[i].AttachedTo = &container.VMID
+					allVolumes[i].MountPoint = attachment.MountPoint
+				}
+			}
+		}
+	}
+
 	fmt.Printf("[INFO] GetVolumes: returning %d total volumes\n", len(allVolumes))
 	return allVolumes, nil
+}
+
+// getContainerVolumeAttachments gets all volume attachments for a container
+// Returns a map of volid -> attachment info
+func (c *Client) getContainerVolumeAttachments(vmid int) (map[string]struct{ MountPoint string }, error) {
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, vmid)
+	fmt.Printf("[DEBUG] getContainerVolumeAttachments: requesting path=%s\n", path)
+
+	respBody, err := c.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get container config: %w", err)
+	}
+
+	var response struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse container config: %w", err)
+	}
+
+	attachments := make(map[string]struct{ MountPoint string })
+
+	// Check rootfs
+	if rootfs, ok := response.Data["rootfs"].(string); ok {
+		// Parse rootfs format: "storage:volume,size=XG" or "storage:vm-XXX-disk-0,size=XG"
+		if volid := extractVolIDFromConfig(rootfs); volid != "" {
+			attachments[volid] = struct{ MountPoint string }{MountPoint: "rootfs"}
+			fmt.Printf("[DEBUG] Found rootfs volume: %s for container %d\n", volid, vmid)
+		}
+	}
+
+	// Check mount points (mp0 through mp9)
+	for i := 0; i < 10; i++ {
+		mpKey := fmt.Sprintf("mp%d", i)
+		if mp, ok := response.Data[mpKey].(string); ok {
+			// Parse mount point format: "storage:volume,mp=/path"
+			if volid := extractVolIDFromConfig(mp); volid != "" {
+				attachments[volid] = struct{ MountPoint string }{MountPoint: mpKey}
+				fmt.Printf("[DEBUG] Found mount point %s volume: %s for container %d\n", mpKey, volid, vmid)
+			}
+		}
+	}
+
+	return attachments, nil
+}
+
+// extractVolIDFromConfig extracts the volume ID from a config string
+// Format examples:
+// - "local-lvm:vm-100-disk-0,size=8G"
+// - "local-zfs:vm-100-disk-1,mp=/mnt/data"
+func extractVolIDFromConfig(configStr string) string {
+	// Split by comma to get the first part
+	parts := strings.Split(configStr, ",")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// The first part should be "storage:volume"
+	volid := parts[0]
+
+	// Verify it has the expected format (contains a colon)
+	if strings.Contains(volid, ":") {
+		return volid
+	}
+
+	return ""
 }
 
 // GetVolume retrieves a specific volume by volid
