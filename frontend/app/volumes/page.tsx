@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, HardDrive, Trash2, Link as LinkIcon, Unlink } from 'lucide-react';
+import { Plus, HardDrive, Trash2, Link as LinkIcon } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
