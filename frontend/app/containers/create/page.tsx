@@ -8,14 +8,16 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { createContainer, getTemplates } from '@/lib/api';
-import type { CreateContainerRequest, Template } from '@/lib/types';
+import { createContainer, getTemplates, getProjects } from '@/lib/api';
+import type { CreateContainerRequest, Template, Project } from '@/lib/types';
 
 export default function CreateContainerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -30,6 +32,7 @@ export default function CreateContainerPage() {
     ssh_keys: '',
     start_on_boot: false,
     unprivileged: true,
+    project_id: undefined,
     ip_address: '',
     gateway: '',
     nameserver: '8.8.8.8',
@@ -40,6 +43,7 @@ export default function CreateContainerPage() {
 
   useEffect(() => {
     loadTemplates();
+    loadProjects();
   }, []);
 
   async function loadTemplates() {
@@ -54,6 +58,18 @@ export default function CreateContainerPage() {
       console.error('Failed to load templates:', err);
     } finally {
       setTemplatesLoading(false);
+    }
+  }
+
+  async function loadProjects() {
+    try {
+      setProjectsLoading(true);
+      const data = await getProjects();
+      setProjects(data);
+    } catch (err) {
+      console.error('Failed to load projects:', err);
+    } finally {
+      setProjectsLoading(false);
     }
   }
 
@@ -217,6 +233,33 @@ export default function CreateContainerPage() {
               <div className="text-warning">
                 No templates found. Please upload templates to your Proxmox storage.
               </div>
+            )}
+
+            {/* Project Selection */}
+            {projectsLoading ? (
+              <div className="text-text-muted">Loading projects...</div>
+            ) : projects.length > 0 ? (
+              <Select
+                label="Project (Optional)"
+                value={formData.project_id || ''}
+                onChange={(e) => handleInputChange('project_id', e.target.value || undefined)}
+                options={[
+                  { value: '', label: 'No Project' },
+                  ...projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                  })),
+                ]}
+              />
+            ) : (
+              <div className="text-text-muted text-sm">
+                No projects available. You can create projects to organize your containers.
+              </div>
+            )}
+            {projects.length > 0 && (
+              <p className="text-sm text-text-muted -mt-2">
+                Optionally assign this container to a project for better organization
+              </p>
             )}
           </div>
         </Card>

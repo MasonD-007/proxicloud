@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -342,3 +342,42 @@ export async function cloneSnapshot(volid: string, data: CloneSnapshotRequest): 
     body: JSON.stringify(data),
   });
 }
+
+// Projects
+export async function getProjects(): Promise<Project[]> {
+  return fetchAPI('/projects');
+}
+
+export async function getProject(id: string): Promise<Project> {
+  return fetchAPI(`/projects/${id}`);
+}
+
+export async function createProject(data: CreateProjectRequest): Promise<Project> {
+  return fetchAPI('/projects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateProject(id: string, data: UpdateProjectRequest): Promise<Project> {
+  return fetchAPI(`/projects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
+}
+
+export async function getProjectContainers(id: string): Promise<Container[]> {
+  return fetchAPI(`/projects/${id}/containers`);
+}
+
+export async function assignContainerProject(vmid: number, data: AssignProjectRequest): Promise<void> {
+  await fetchAPI(`/containers/${vmid}/project`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+

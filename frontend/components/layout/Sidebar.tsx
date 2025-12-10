@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Container, BarChart3, FileText, HardDrive } from 'lucide-react';
+import { LayoutDashboard, Container, BarChart3, FileText, HardDrive, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/projects', label: 'Projects', icon: FolderOpen },
   { href: '/containers', label: 'Containers', icon: Container },
   { href: '/volumes', label: 'Volumes', icon: HardDrive },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },

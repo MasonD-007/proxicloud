@@ -2,34 +2,51 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Play, Square, RotateCw, Trash2 } from 'lucide-react';
+import { Plus, Play, Square, RotateCw, Trash2, Filter } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import { getContainers, startContainer, stopContainer, rebootContainer, deleteContainer } from '@/lib/api';
+import Select from '@/components/ui/Select';
+import { getContainers, getProjects, startContainer, stopContainer, rebootContainer, deleteContainer } from '@/lib/api';
 import { formatBytes, formatCPU, formatUptime } from '@/lib/utils';
-import type { Container } from '@/lib/types';
+import type { Container, Project } from '@/lib/types';
 
 export default function ContainersPage() {
   const [containers, setContainers] = useState<Container[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [selectedProject, setSelectedProject] = useState<string>('all');
 
   useEffect(() => {
-    loadContainers();
+    loadData();
   }, []);
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError(null);
+      const [containersData, projectsData] = await Promise.all([
+        getContainers(),
+        getProjects().catch(() => [] as Project[]), // Gracefully handle if projects fail
+      ]);
+      setContainers(containersData);
+      setProjects(projectsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function loadContainers() {
     try {
-      setLoading(true);
       setError(null);
       const data = await getContainers();
       setContainers(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load containers');
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -61,6 +78,20 @@ export default function ContainersPage() {
       setActionLoading(null);
     }
   }
+
+  // Filter containers based on selected project
+  const filteredContainers = selectedProject === 'all'
+    ? containers
+    : selectedProject === 'none'
+    ? containers.filter((c) => !c.project_id)
+    : containers.filter((c) => c.project_id === selectedProject);
+
+  // Get project name by ID
+  const getProjectName = (projectId?: string) => {
+    if (!projectId) return null;
+    const project = projects.find((p) => p.id === projectId);
+    return project?.name || null;
+  };
 
   if (loading) {
     return (
@@ -96,7 +127,50 @@ export default function ContainersPage() {
         </Link>
       </div>
 
-      {containers.length === 0 ? (
+      {/* Project Filter */}
+      {projects.length > 0 && (
+        <Card>
+          <div className="flex items-center gap-4">
+            <Filter className="w-5 h-5 text-text-muted" />
+            <div className="flex-1">
+              <Select
+                label="Filter by Project"
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                options={[
+                  { value: 'all', label: 'All Projects' },
+                  { value: 'none', label: 'No Project' },
+                  ...projects.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+              />
+            </div>
+            {selectedProject !== 'all' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedProject('all')}
+              >
+                Clear Filter
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {filteredContainers.length === 0 && containers.length > 0 ? (
+        <Card>
+          <div className="text-center py-12">
+            <div className="text-text-muted mb-4">
+              No containers found {selectedProject !== 'all' && 'in this project'}
+            </div>
+            {selectedProject !== 'all' && (
+              <Button onClick={() => setSelectedProject('all')}>
+                Clear Filter
+              </Button>
+            )}
+          </div>
+        </Card>
+      ) : containers.length === 0 ? (
         <Card>
           <div className="text-center py-12">
             <div className="text-text-muted mb-4">No containers found</div>
@@ -120,6 +194,9 @@ export default function ContainersPage() {
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                  Project
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -137,7 +214,7 @@ export default function ContainersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {containers.map((container) => (
+              {filteredContainers.map((container) => (
                 <tr key={container.vmid} className="hover:bg-surface-elevated">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">
                     {container.vmid}
@@ -148,6 +225,17 @@ export default function ContainersPage() {
                         {container.name}
                       </span>
                     </Link>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {container.project_id ? (
+                      <Link href={`/projects/${container.project_id}`}>
+                        <span className="text-sm text-primary hover:underline">
+                          {getProjectName(container.project_id) || container.project_id}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-text-muted">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Badge variant={container.status === 'running' ? 'success' : 'default'}>

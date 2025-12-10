@@ -81,8 +81,22 @@ func main() {
 		log.Println("Metrics collector started (30-second intervals, 30-day retention)")
 	}
 
+	// Initialize project store
+	projectsDB := os.Getenv("PROJECTS_PATH")
+	if projectsDB == "" {
+		projectsDB = "/var/lib/proxicloud/projects.json"
+	}
+
+	projectStore, err := proxmox.NewProjectStore(projectsDB)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize project store: %v (continuing without projects)", err)
+		projectStore = nil
+	} else {
+		log.Printf("Project store initialized at %s", projectsDB)
+	}
+
 	// Create handlers
-	h := handlers.NewHandler(client, cacheInstance, analyticsInstance)
+	h := handlers.NewHandler(client, cacheInstance, analyticsInstance, projectStore)
 
 	// Set up router
 	router := mux.NewRouter()
@@ -117,6 +131,15 @@ func main() {
 	api.HandleFunc("/volumes/{volid}/snapshots", h.CreateSnapshot).Methods("POST")
 	api.HandleFunc("/volumes/{volid}/snapshots/restore", h.RestoreSnapshot).Methods("POST")
 	api.HandleFunc("/volumes/{volid}/snapshots/clone", h.CloneSnapshot).Methods("POST")
+
+	// Project routes
+	api.HandleFunc("/projects", h.ListProjects).Methods("GET")
+	api.HandleFunc("/projects", h.CreateProject).Methods("POST")
+	api.HandleFunc("/projects/{id}", h.GetProject).Methods("GET")
+	api.HandleFunc("/projects/{id}", h.UpdateProject).Methods("PUT")
+	api.HandleFunc("/projects/{id}", h.DeleteProject).Methods("DELETE")
+	api.HandleFunc("/projects/{id}/containers", h.GetProjectContainers).Methods("GET")
+	api.HandleFunc("/containers/{vmid}/project", h.AssignContainerProject).Methods("POST")
 
 	// Set up CORS
 	c := cors.New(cors.Options{

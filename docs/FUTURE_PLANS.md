@@ -8,7 +8,7 @@
 
 ## 📊 Project Status Summary
 
-### ✅ Completed Features (MVP Progress: ~40%)
+### ✅ Completed Features (MVP Progress: ~60%)
 
 **Core Infrastructure:**
 - ✅ **Container Management** - Full CRUD operations for LXC containers
@@ -20,6 +20,7 @@
 - ✅ **Metrics API** - RESTful endpoints for metrics data
 - ✅ **Web UI** - Modern Next.js frontend with TailwindCSS
 - ✅ **Volume Management** - EBS-like persistent block storage with snapshots
+- ✅ **Project Organization** - Group containers by project/application with aggregate metrics
 
 **API Endpoints Implemented:**
 - `GET /api/health` - Health check
@@ -47,11 +48,20 @@
 - `POST /api/volumes/{volid}/snapshots/restore` - Restore snapshot
 - `POST /api/volumes/{volid}/snapshots/clone` - Clone snapshot
 
+- `GET /api/projects` - List all projects
+- `POST /api/projects` - Create new project
+- `GET /api/projects/{id}` - Get project details with containers
+- `PUT /api/projects/{id}` - Update project metadata
+- `DELETE /api/projects/{id}` - Delete project (if empty)
+- `GET /api/projects/{id}/containers` - List containers in project
+- `POST /api/containers/{vmid}/project` - Assign container to project
+
 ### 🚧 In Progress
 - 🚧 **One-Click App Deployment** - Template viewing complete, auto-configuration pending
-- 🚧 **User Authentication** - IAM-like identity management (planned for MVP)
+- 🚧 **User Authentication** - IAM-like identity management (Epic 4, planned for MVP)
 
 ### ⏳ Planned
+- ⏳ **User Authentication** - IAM-like identity management (planned for MVP)
 - ⏳ **Object Storage** - S3-like API (Mid-Tier release)
 - ⏳ **Advanced Networking** - VPC-like networks and security groups (Mid-Tier release)
 - ⏳ **Serverless Functions** - Lambda-like FaaS (Advanced release)
@@ -217,9 +227,85 @@ ProxiCloud aims to bring AWS-like cloud services to self-hosted Proxmox environm
 
 ---
 
-#### Epic 3: IAM-like Identity Management
+#### Epic 3: Project Organization & Management ✅ (COMPLETED)
 
-**US-008: Multi-User Management**
+**US-008: Create and Manage Projects** ✅ (DONE)
+> **As a developer**, I want to create projects that group related containers together so that I can organize my infrastructure by application or environment.
+
+**Acceptance Criteria:**
+- ✅ Can create projects with name, description, and optional tags
+- ✅ Can view list of all projects with container counts
+- ✅ Can edit project metadata (name, description, tags)
+- ✅ Can delete empty projects
+- ✅ Projects appear in dedicated projects page
+
+**Priority:** P1 (High)
+**Status:** COMPLETED ✅
+
+---
+
+**US-009: Associate Containers with Projects** ✅ (DONE)
+> **As a developer**, I want to assign containers to projects so that I can see which containers belong to each application.
+
+**Acceptance Criteria:**
+- ✅ Can assign container to project via API endpoint
+- ✅ Container data includes project_id field
+- ✅ Can assign container to "No Project" (unassigned/null)
+- ✅ Backend tracks container-to-project assignments
+- ✅ API endpoints support project operations
+
+**Priority:** P1 (High)
+**Status:** COMPLETED ✅
+
+---
+
+**US-010: Project Dashboard View** ✅ (DONE)
+> **As a developer**, I want to view a project's details and see all associated containers so that I can manage related resources together.
+
+**Acceptance Criteria:**
+- ✅ Project details page shows: name, description, tags, creation date
+- ✅ Shows list of all containers in the project
+- ✅ Displays aggregate metrics: total CPU, total RAM, running/stopped counts
+- ✅ Can start/stop/reboot containers from project view
+- ✅ Can navigate to individual container details
+
+**Priority:** P1 (High)
+**Status:** COMPLETED ✅
+
+---
+
+**US-011: Project-Based Filtering** ✅ (DONE)
+> **As a developer**, I want to filter the container list by project so that I can focus on specific applications.
+
+**Acceptance Criteria:**
+- ✅ Container list has project filter dropdown
+- ✅ Filter shows: All Projects, No Project, and each named project
+- ✅ Can clear filter to show all containers
+- ✅ Container table displays project column with links
+
+**Priority:** P2 (Medium)
+**Status:** COMPLETED ✅
+
+---
+
+**US-012: Project Selection in Container Create** ✅ (DONE)
+> **As a developer**, I want to assign containers to projects during creation so that I can organize resources from the start.
+
+**Acceptance Criteria:**
+- ✅ Container create form includes project dropdown
+- ✅ Shows "No Project" option as default
+- ✅ Lists all available projects
+- ✅ Project selection is optional
+- ✅ Container is created with project_id if selected
+
+**Priority:** P2 (Medium)
+**Status:** COMPLETED ✅
+
+---
+
+#### Epic 4: IAM-like Identity Management
+
+**US-012: Multi-User Management**
 > **As an administrator**, I want to create user accounts with different permissions so that I can safely share my homelab.
 
 **Acceptance Criteria:**
@@ -233,7 +319,7 @@ ProxiCloud aims to bring AWS-like cloud services to self-hosted Proxmox environm
 
 ---
 
-**US-009: User Resource Isolation**
+**US-013: User Resource Isolation**
 > **As a user**, I want to log in and see only my own resources so that my instances are isolated from other users.
 
 **Acceptance Criteria:**
@@ -561,7 +647,7 @@ networks:
 
 **Goal:** Launch core compute and storage functionality with basic IAM.
 
-**Overall Progress:** ~50% Complete ✅
+**Overall Progress:** ~60% Complete ✅
 
 #### Backend Tasks
 
@@ -591,6 +677,7 @@ networks:
 - ✅ Implement endpoints for instances, containers, templates
 - ✅ Implement analytics endpoints
 - ✅ Implement volume management endpoints (10 endpoints)
+- ✅ Implement project management endpoints (7 endpoints)
 - ⏳ Implement authentication endpoints (pending)
 - ⏳ Implement user/role management endpoints (pending)
 
@@ -615,6 +702,9 @@ networks:
   - ✅ `/volumes` - Volume list with filtering
   - ✅ `/volumes/create` - Volume creation wizard
   - ✅ `/volumes/[volid]` - Volume details with snapshot management
+  - ✅ `/projects` - Project list page
+  - ✅ `/projects/create` - Project creation form
+  - ✅ `/projects/[id]` - Project details with container list
 - ✅ Implement API client (fetch wrapper)
 - ⏳ Set up authentication context (pending)
 
@@ -643,6 +733,9 @@ networks:
 - ✅ Users can create/attach/detach volumes
 - ✅ Volume snapshot management (create, restore, clone)
 - ✅ Full volume lifecycle management UI
+- ✅ Users can create/manage projects
+- ✅ Containers can be assigned to projects
+- ✅ Project details show aggregate metrics and container lists
 - ⏳ Basic role-based access control (pending)
 
 ---
@@ -1115,7 +1208,8 @@ roles (id, name, permissions)
 user_roles (user_id, role_id)
 
 -- Compute resources
-instances (id, name, type, vcpu, memory_mb, status, user_id, created_at)
+projects (id, name, description, tags, user_id, created_at)
+instances (id, name, type, vcpu, memory_mb, status, project_id, user_id, created_at)
 volumes (id, size_gb, type, attached_to, user_id, created_at)
 snapshots (id, volume_id, name, description, created_at)
 
@@ -1145,6 +1239,7 @@ See full API documentation at `/docs/API.md` (to be created).
 
 Quick reference:
 - **Auth:** `/api/v1/auth/*`
+- **Projects:** `/api/v1/projects/*`
 - **Instances:** `/api/v1/instances/*`
 - **Volumes:** `/api/v1/volumes/*`
 - **Storage:** `/api/v1/buckets/*`
@@ -1161,6 +1256,7 @@ Quick reference:
 | 1.0 | 2025-12-08 | System | Initial comprehensive roadmap |
 | 1.1 | 2025-12-09 | System | Updated with completion status for implemented features:<br>- ✅ Container management (CRUD operations)<br>- ✅ Template system (browse, upload)<br>- ✅ Analytics & monitoring dashboard<br>- ✅ Caching system<br>- ✅ Core REST API endpoints<br>- ✅ Modern Next.js frontend<br>- 🚧 Phase 1 MVP ~40% complete |
 | 1.2 | 2025-12-09 | System | ✅ **Epic 2: EBS-like Block Storage - COMPLETED**<br>- Implemented full volume management system<br>- 17/17 tasks complete (100%)<br>- Backend: Types, Proxmox client, handlers, cache, routes<br>- Frontend: Types, API client, pages (list, create, details)<br>- Features: Create, attach, detach, snapshot, restore, clone volumes<br>- Documentation: API.md updated, VOLUME_MANAGEMENT.md created<br>- 🎉 Phase 1 MVP now ~50% complete |
+| 1.3 | 2025-12-09 | System | ✅ **Epic 3: Project Organization - COMPLETED**<br>- Implemented project management system (US-008, US-009, US-010)<br>- Backend: ProjectStore with JSON persistence, 7 API endpoints<br>- Frontend: Project list, create form, detail pages with aggregate metrics<br>- Features: Create/edit/delete projects, assign containers, view project metrics<br>- TypeScript compilation errors fixed (Button "outline" variant, Badge props)<br>- Navigation updated with Projects link<br>- 🎉 Phase 1 MVP now ~60% complete |
 
 ---
 

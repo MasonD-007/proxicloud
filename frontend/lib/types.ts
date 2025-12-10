@@ -11,6 +11,7 @@ export interface Container {
   uptime: number;
   template?: string;
   os?: string;
+  project_id?: string;
 }
 
 export interface CreateContainerRequest {
@@ -24,6 +25,7 @@ export interface CreateContainerRequest {
   ssh_keys?: string;
   start_on_boot?: boolean;
   unprivileged?: boolean;
+  project_id?: string;
   // Network configuration
   ip_address?: string; // IP address with CIDR notation (e.g., "192.168.1.100/24")
   gateway?: string;    // Gateway IP address (e.g., "192.168.1.1")
@@ -128,3 +130,29 @@ export interface CloneSnapshotRequest {
   new_name: string;
   storage?: string;
 }
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  tags?: string[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface AssignProjectRequest {
+  project_id: string; // Empty string means "No Project"
+}
+

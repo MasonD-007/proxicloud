@@ -16,19 +16,21 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Handler holds the Proxmox client, cache, and analytics
+// Handler holds the Proxmox client, cache, analytics, and project store
 type Handler struct {
-	client    *proxmox.Client
-	cache     *cache.Cache
-	analytics *analytics.Analytics
+	client       *proxmox.Client
+	cache        *cache.Cache
+	analytics    *analytics.Analytics
+	projectStore *proxmox.ProjectStore
 }
 
 // NewHandler creates a new handler
-func NewHandler(client *proxmox.Client, cache *cache.Cache, analytics *analytics.Analytics) *Handler {
+func NewHandler(client *proxmox.Client, cache *cache.Cache, analytics *analytics.Analytics, projectStore *proxmox.ProjectStore) *Handler {
 	return &Handler{
-		client:    client,
-		cache:     cache,
-		analytics: analytics,
+		client:       client,
+		cache:        cache,
+		analytics:    analytics,
+		projectStore: projectStore,
 	}
 }
 
@@ -145,6 +147,14 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WARNING] Proxmox returned empty container list - this may indicate no containers exist or an API issue")
 	}
 
+	// Enrich with project information
+	if h.projectStore != nil {
+		for i := range containers {
+			projectID := h.projectStore.GetContainerProject(containers[i].VMID)
+			containers[i].ProjectID = projectID
+		}
+	}
+
 	// Cache the containers
 	if h.cache != nil {
 		if err := h.cache.SetContainers(containers); err != nil {
@@ -177,6 +187,11 @@ func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Enrich with project information
+	if h.projectStore != nil {
+		container.ProjectID = h.projectStore.GetContainerProject(vmid)
 	}
 
 	// Cache the container
@@ -227,6 +242,14 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 	if err := h.client.CreateContainer(vmid, req); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Assign to project if specified
+	if req.ProjectID != "" && h.projectStore != nil {
+		if err := h.projectStore.AssignContainer(vmid, req.ProjectID); err != nil {
+			log.Printf("[WARNING] Failed to assign container %d to project %s: %v", vmid, req.ProjectID, err)
+			// Don't fail the whole request, just log the error
+		}
 	}
 
 	respondJSON(w, http.StatusCreated, map[string]int{"vmid": vmid})
@@ -778,8 +801,13 @@ func (h *Handler) CloneSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.SnapshotName == "" || req.NewName == "" {
-		respondError(w, http.StatusBadRequest, "snapshot_name and new_name are required")
+	if req.SnapshotName == "" {
+		respondError(w, http.StatusBadRequest, "snapshot_name is required")
+		return
+	}
+
+	if req.NewName == "" {
+		respondError(w, http.StatusBadRequest, "new_name is required")
 		return
 	}
 
@@ -790,4 +818,227 @@ func (h *Handler) CloneSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, volume)
+}
+
+// ListProjects lists all projects
+func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	projects, err := h.projectStore.ListProjects()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, projects)
+}
+
+// CreateProject creates a new project
+func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	var req proxmox.CreateProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		respondError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	project, err := h.projectStore.CreateProject(req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, project)
+}
+
+// GetProject gets a project by ID
+func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	project, err := h.projectStore.GetProject(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, project)
+}
+
+// UpdateProject updates a project
+func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	var req proxmox.UpdateProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	project, err := h.projectStore.UpdateProject(id, req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, project)
+}
+
+// DeleteProject deletes a project
+func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	err := h.projectStore.DeleteProject(id)
+	if err != nil {
+		if err.Error() == "cannot delete project with containers" {
+			respondError(w, http.StatusBadRequest, err.Error())
+		} else {
+			respondError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetProjectContainers gets containers for a project
+func (h *Handler) GetProjectContainers(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Get project
+	project, err := h.projectStore.GetProject(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
+	// Get all containers
+	containers, err := h.client.GetContainers()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Filter containers by project
+	projectContainers := []proxmox.Container{}
+	for _, c := range containers {
+		if c.ProjectID != "" && c.ProjectID == id {
+			projectContainers = append(projectContainers, c)
+		}
+	}
+
+	// Calculate aggregates
+	totalCPU := 0
+	totalMemMB := int64(0)
+	usedMemMB := int64(0)
+	running := 0
+	stopped := 0
+
+	for _, c := range projectContainers {
+		// Note: Container doesn't have CPUCores field, we'll need to get it from container config
+		// For now, skip CPU aggregation
+		totalMemMB += c.MaxMem / 1024 / 1024
+		usedMemMB += c.Mem / 1024 / 1024
+		if c.Status == "running" {
+			running++
+		} else {
+			stopped++
+		}
+	}
+
+	result := map[string]interface{}{
+		"project":    project,
+		"containers": projectContainers,
+		"aggregate": map[string]interface{}{
+			"total_containers": len(projectContainers),
+			"running":          running,
+			"stopped":          stopped,
+			"total_cpu_cores":  totalCPU,
+			"total_memory_mb":  totalMemMB,
+			"used_memory_mb":   usedMemMB,
+		},
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+// AssignContainerProject assigns a container to a project
+func (h *Handler) AssignContainerProject(w http.ResponseWriter, r *http.Request) {
+	if h.projectStore == nil {
+		respondError(w, http.StatusServiceUnavailable, "project store not available")
+		return
+	}
+
+	vars := mux.Vars(r)
+	vmidStr := vars["vmid"]
+	vmid, err := strconv.Atoi(vmidStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid vmid")
+		return
+	}
+
+	var req proxmox.AssignProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Verify container exists
+	_, err = h.client.GetContainer(vmid)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "container not found")
+		return
+	}
+
+	// If project_id is not empty, verify project exists
+	if req.ProjectID != "" {
+		_, err := h.projectStore.GetProject(req.ProjectID)
+		if err != nil {
+			respondError(w, http.StatusNotFound, "project not found")
+			return
+		}
+	}
+
+	// Assign/unassign container (empty string means unassign)
+	if err := h.projectStore.AssignContainer(vmid, req.ProjectID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "assigned"})
 }

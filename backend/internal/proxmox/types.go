@@ -4,18 +4,19 @@ import "encoding/json"
 
 // Container represents an LXC container
 type Container struct {
-	VMID     int     `json:"vmid"`
-	Name     string  `json:"name"`
-	Status   string  `json:"status"`
-	Node     string  `json:"node"`
-	CPU      float64 `json:"cpu"`
-	Mem      int64   `json:"mem"`
-	MaxMem   int64   `json:"maxmem"`
-	Disk     int64   `json:"disk"`
-	MaxDisk  int64   `json:"maxdisk"`
-	Uptime   int64   `json:"uptime"`
-	Template string  `json:"template,omitempty"`
-	OS       string  `json:"os,omitempty"`
+	VMID      int     `json:"vmid"`
+	Name      string  `json:"name"`
+	Status    string  `json:"status"`
+	Node      string  `json:"node"`
+	CPU       float64 `json:"cpu"`
+	Mem       int64   `json:"mem"`
+	MaxMem    int64   `json:"maxmem"`
+	Disk      int64   `json:"disk"`
+	MaxDisk   int64   `json:"maxdisk"`
+	Uptime    int64   `json:"uptime"`
+	Template  string  `json:"template,omitempty"`
+	OS        string  `json:"os,omitempty"`
+	ProjectID string  `json:"project_id,omitempty"` // Associated project ID
 }
 
 // CreateContainerRequest holds parameters for creating a new container
@@ -30,6 +31,7 @@ type CreateContainerRequest struct {
 	SSHKeys      string `json:"ssh_keys,omitempty"`
 	StartOnBoot  bool   `json:"start_on_boot,omitempty"`
 	Unprivileged bool   `json:"unprivileged,omitempty"`
+	ProjectID    string `json:"project_id,omitempty"` // Optional: assign to project
 	// Network configuration
 	IPAddress  string `json:"ip_address,omitempty"` // IP address with CIDR notation (e.g., "192.168.1.100/24")
 	Gateway    string `json:"gateway,omitempty"`    // Gateway IP address (e.g., "192.168.1.1")
@@ -107,6 +109,35 @@ type CloneSnapshotRequest struct {
 	SnapshotName string `json:"snapshot_name"`
 	NewName      string `json:"new_name"`
 	Storage      string `json:"storage,omitempty"` // Optional: different storage pool
+}
+
+// Project represents a logical grouping of containers
+type Project struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	CreatedAt   int64    `json:"created_at"`
+	UpdatedAt   int64    `json:"updated_at"`
+}
+
+// CreateProjectRequest holds parameters for creating a new project
+type CreateProjectRequest struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// UpdateProjectRequest holds parameters for updating a project
+type UpdateProjectRequest struct {
+	Name        string   `json:"name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// AssignProjectRequest holds parameters for assigning a container to a project
+type AssignProjectRequest struct {
+	ProjectID string `json:"project_id"` // Empty string means "No Project"
 }
 
 // ProxmoxResponse is the generic response from Proxmox API
