@@ -33,8 +33,8 @@ export default function ProjectsPage() {
       const projectsWithCounts = await Promise.all(
         data.map(async (project) => {
           try {
-            const containers = await getProjectContainers(project.id);
-            return { ...project, containerCount: containers.length };
+            const response = await getProjectContainers(project.id);
+            return { ...project, containerCount: response.containers.length };
           } catch {
             return { ...project, containerCount: 0 };
           }

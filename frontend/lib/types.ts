@@ -136,8 +136,22 @@ export interface Project {
   name: string;
   description?: string;
   tags?: string[];
-  created_at: number;
-  updated_at: number;
+  container_count: number;
+  created_at: number; // Unix timestamp
+  updated_at: number; // Unix timestamp
+}
+
+export interface ProjectContainersResponse {
+  project: Project;
+  containers: Container[];
+  aggregate: {
+    total_containers: number;
+    running: number;
+    stopped: number;
+    total_cpu_cores: number;
+    total_memory_mb: number;
+    used_memory_mb: number;
+  };
 }
 
 export interface CreateProjectRequest {

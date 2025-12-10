@@ -26,12 +26,13 @@ export default function ProjectDetailsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [projectData, containersData] = await Promise.all([
+      const [projectData, projectContainersData] = await Promise.all([
         getProject(projectId),
         getProjectContainers(projectId),
       ]);
       setProject(projectData);
-      setContainers(containersData);
+      // Extract containers array from the response object
+      setContainers(projectContainersData.containers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project');
     } finally {
@@ -91,11 +92,15 @@ export default function ProjectDetailsPage() {
   }
 
   function calculateTotals() {
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return { cpu: 0, memory: 0, maxMemory: 0, running: 0, stopped: 0 };
+    }
+    
     return containers.reduce(
       (acc, container) => ({
-        cpu: acc.cpu + container.cpu,
-        memory: acc.memory + container.mem,
-        maxMemory: acc.maxMemory + container.maxmem,
+        cpu: acc.cpu + (container.cpu || 0),
+        memory: acc.memory + (container.mem || 0),
+        maxMemory: acc.maxMemory + (container.maxmem || 0),
         running: acc.running + (container.status === 'running' ? 1 : 0),
         stopped: acc.stopped + (container.status === 'stopped' ? 1 : 0),
       }),

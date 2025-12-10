@@ -12,10 +12,12 @@ import (
 )
 
 // generateID creates a random ID for projects
-func generateID() string {
+func generateID() (string, error) {
 	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate random ID: %v", err)
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // ProjectStore manages project persistence
@@ -123,9 +125,15 @@ func (ps *ProjectStore) CreateProject(req CreateProjectRequest) (*Project, error
 		}
 	}
 
+	// Generate ID
+	id, err := generateID()
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().Unix()
 	project := &Project{
-		ID:          generateID(),
+		ID:          id,
 		Name:        req.Name,
 		Description: req.Description,
 		Tags:        req.Tags,

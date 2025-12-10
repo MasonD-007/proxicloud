@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest, ProjectContainersResponse } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -370,7 +370,7 @@ export async function deleteProject(id: string): Promise<void> {
   await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
 }
 
-export async function getProjectContainers(id: string): Promise<Container[]> {
+export async function getProjectContainers(id: string): Promise<ProjectContainersResponse> {
   return fetchAPI(`/projects/${id}/containers`);
 }
 
