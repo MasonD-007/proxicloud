@@ -543,13 +543,19 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 				continue
 			}
 
+			fmt.Printf("[DEBUG] Container %d has %d attachments\n", container.VMID, len(attachments))
+			for volid := range attachments {
+				fmt.Printf("[DEBUG]   - %s\n", volid)
+			}
+
 			// Process all attachments found in container config
 			for volid, attachment := range attachments {
 				if vol, exists := volumeMap[volid]; exists {
 					// Update existing volume with attachment info
 					fmt.Printf("[DEBUG] Updating existing volume %s: attaching to container %d (was: %v)\n", volid, container.VMID, vol.AttachedTo)
+					vmid := container.VMID // Create a copy to avoid pointer issues with loop variable
 					vol.Status = "in-use"
-					vol.AttachedTo = &container.VMID
+					vol.AttachedTo = &vmid
 					vol.MountPoint = attachment.MountPoint
 					volumeMap[volid] = vol
 					fmt.Printf("[DEBUG] Volume %s now attached to: %d\n", volid, *vol.AttachedTo)
@@ -582,6 +588,7 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 						}
 					}
 
+					vmid := container.VMID // Create a copy to avoid pointer issues with loop variable
 					volume := Volume{
 						VolID:      volid,
 						Name:       extractVolumeName(volid),
@@ -590,11 +597,11 @@ func (c *Client) GetVolumes() ([]Volume, error) {
 						Storage:    storage,
 						Format:     format,
 						Status:     "in-use",
-						AttachedTo: &container.VMID,
+						AttachedTo: &vmid,
 						MountPoint: attachment.MountPoint,
 					}
 					volumeMap[volid] = volume
-					fmt.Printf("[INFO] Discovered volume %s from container %d config, attached_to=%d\n", volid, container.VMID, container.VMID)
+					fmt.Printf("[INFO] Discovered volume %s from container %d config, attached_to=%d\n", volid, container.VMID, vmid)
 				}
 			}
 		}
