@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Server, Activity, HardDrive, Plus } from 'lucide-react';
+import { Server, Activity, HardDrive, Plus, FolderOpen } from 'lucide-react';
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import { getDashboard, getContainers } from '@/lib/api';
+import { getDashboard, getContainers, getProjects } from '@/lib/api';
 import { formatBytes, formatCPU } from '@/lib/utils';
-import type { DashboardStats, Container } from '@/lib/types';
+import type { DashboardStats, Container, Project } from '@/lib/types';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [containers, setContainers] = useState<Container[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,12 +25,14 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [dashboardData, containersData] = await Promise.all([
+      const [dashboardData, containersData, projectsData] = await Promise.all([
         getDashboard(),
         getContainers(),
+        getProjects(),
       ]);
       setStats(dashboardData);
       setContainers(containersData.slice(0, 5)); // Recent 5
+      setProjects(projectsData.slice(0, 5)); // Recent 5
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard');
     } finally {
@@ -72,7 +75,24 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-text-muted text-sm mb-1">Total Projects</div>
+              <div className="text-3xl font-bold text-text-primary">
+                {projects.length}
+              </div>
+              <div className="text-sm text-text-muted mt-1">
+                Active projects
+              </div>
+            </div>
+            <div className="p-3 bg-success/10 rounded-lg">
+              <FolderOpen className="w-6 h-6 text-success" />
+            </div>
+          </div>
+        </Card>
+
         <Card>
           <div className="flex items-center justify-between">
             <div>
@@ -122,6 +142,52 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Recent Projects */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Recent Projects</CardTitle>
+            <Link href="/projects">
+              <Button variant="ghost" size="sm">
+                View All
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {projects.length === 0 ? (
+            <div className="text-center py-8 text-text-muted">
+              No projects found
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {projects.map((project) => (
+                <Link key={project.id} href={`/projects/${project.id}`}>
+                  <div className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-elevated transition-colors">
+                    <div className="flex items-center gap-3">
+                      <FolderOpen className="w-5 h-5 text-text-muted" />
+                      <div>
+                        <div className="font-medium text-text-primary">
+                          {project.name}
+                        </div>
+                        {project.description && (
+                          <div className="text-sm text-text-muted line-clamp-1">
+                            {project.description}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="default">
+                      {project.container_count} containers
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent Containers */}
       <Card>

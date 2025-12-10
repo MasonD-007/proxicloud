@@ -49,8 +49,13 @@ export default function ProjectsPage() {
     }
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`Are you sure you want to delete project "${name}"? This will only work if no containers are assigned to it.`)) {
+  async function handleDelete(id: string, name: string, containerCount: number) {
+    if (containerCount > 0) {
+      alert(`Cannot delete project "${name}" because it has ${containerCount} container(s). Please remove or reassign all containers before deleting this project.`);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete project "${name}"?`)) {
       return;
     }
 
@@ -165,11 +170,15 @@ export default function ProjectsPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        handleDelete(project.id, project.name);
+                        handleDelete(project.id, project.name, project.containerCount ?? 0);
                       }}
-                      disabled={actionLoading === project.id}
-                      className="text-error hover:text-error/80 disabled:opacity-50"
-                      title="Delete project"
+                      disabled={actionLoading === project.id || (project.containerCount ?? 0) > 0}
+                      className="text-error hover:text-error/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        (project.containerCount ?? 0) > 0
+                          ? `Cannot delete: ${project.containerCount} container(s) assigned`
+                          : 'Delete project'
+                      }
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
