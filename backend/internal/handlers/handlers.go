@@ -905,8 +905,8 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		var zone string
 		if len(zones) == 0 {
 			// No SDN zones exist, create a default simple zone
-			// Zone IDs can only contain alphanumeric characters (no hyphens or special chars)
-			zone = "proxicloudzone"
+			// Zone IDs must be alphanumeric only and max 8 characters
+			zone = "proxizon"
 			log.Printf("[INFO] No SDN zones found, creating default zone: %s", zone)
 
 			// Create a simple SDN zone with all cluster nodes
