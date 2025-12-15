@@ -1300,11 +1300,6 @@ func (c *Client) CreateSDNZone(zoneID string, zoneType string, nodes string) err
 		params["nodes"] = nodes
 	}
 
-	// Set default bridge for simple zones
-	if zoneType == "simple" {
-		params["bridge"] = "vmbr0"
-	}
-
 	_, err := c.doRequest("POST", path, params)
 	if err != nil {
 		return fmt.Errorf("failed to create SDN zone: %w", err)
