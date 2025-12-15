@@ -924,15 +924,18 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Generate VNet ID from project name (sanitize for Proxmox naming rules)
-		vnetID := fmt.Sprintf("vnet-%s", strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")))
-		// Ensure VNet ID doesn't exceed Proxmox limits and contains only valid characters
-		vnetID = strings.Map(func(r rune) rune {
-			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+		// VNet IDs must be alphanumeric only (no hyphens) and max 8 characters
+		projectNameClean := strings.ToLower(strings.ReplaceAll(req.Name, " ", ""))
+		// Remove all non-alphanumeric characters
+		projectNameClean = strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 				return r
 			}
 			return -1
-		}, vnetID)
+		}, projectNameClean)
 
+		// Create VNet ID with prefix "vn" (2 chars) + up to 6 chars from project name
+		vnetID := "vn" + projectNameClean
 		if len(vnetID) > 8 {
 			vnetID = vnetID[:8]
 		}
