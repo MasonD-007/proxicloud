@@ -1214,6 +1214,7 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 
 	params := map[string]interface{}{
 		"subnet": subnet,
+		"type":   "subnet", // Required by Proxmox API
 	}
 
 	if gateway != "" {
