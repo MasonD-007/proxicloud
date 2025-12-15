@@ -1286,6 +1286,48 @@ func (c *Client) GetSDNZones() ([]SDNZone, error) {
 	return response.Data, nil
 }
 
+// CreateSDNZone creates a new SDN zone
+func (c *Client) CreateSDNZone(zoneID string, zoneType string, nodes string) error {
+	path := "/cluster/sdn/zones"
+	fmt.Printf("[DEBUG] CreateSDNZone: requesting path=%s, zone=%s, type=%s, nodes=%s\n", path, zoneID, zoneType, nodes)
+
+	params := map[string]interface{}{
+		"zone": zoneID,
+		"type": zoneType,
+	}
+
+	if nodes != "" {
+		params["nodes"] = nodes
+	}
+
+	// Set default bridge for simple zones
+	if zoneType == "simple" {
+		params["bridge"] = "vmbr0"
+	}
+
+	_, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return fmt.Errorf("failed to create SDN zone: %w", err)
+	}
+
+	fmt.Printf("[INFO] CreateSDNZone: created SDN zone %s of type %s\n", zoneID, zoneType)
+	return nil
+}
+
+// DeleteSDNZone deletes an SDN zone
+func (c *Client) DeleteSDNZone(zoneID string) error {
+	path := fmt.Sprintf("/cluster/sdn/zones/%s", zoneID)
+	fmt.Printf("[DEBUG] DeleteSDNZone: requesting path=%s\n", path)
+
+	_, err := c.doRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete SDN zone: %w", err)
+	}
+
+	fmt.Printf("[INFO] DeleteSDNZone: deleted SDN zone %s\n", zoneID)
+	return nil
+}
+
 // GetStorage retrieves status for all datastores on the node
 func (c *Client) GetStorage(req *GetStorageRequest) ([]Storage, error) {
 	path := fmt.Sprintf("/nodes/%s/storage", c.node)

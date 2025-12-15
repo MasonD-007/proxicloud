@@ -96,7 +96,7 @@ export default function CreateProjectPage() {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Project description..."
               rows={4}
-              className="w-full px-4 py-2 bg-background-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-text-primary"
+              className="w-full px-4 py-2 bg-background-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-text-secondary placeholder:text-text-muted"
             />
           </div>
 

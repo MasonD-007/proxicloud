@@ -115,12 +115,13 @@ type CloneSnapshotRequest struct {
 
 // ProjectNetwork represents network configuration for a project
 type ProjectNetwork struct {
-	Subnet     string `json:"subnet,omitempty"`     // CIDR notation (e.g., "192.168.1.0/24")
-	Gateway    string `json:"gateway,omitempty"`    // Gateway IP (e.g., "192.168.1.1")
-	Nameserver string `json:"nameserver,omitempty"` // DNS server (e.g., "8.8.8.8")
-	VLanTag    int    `json:"vlan_tag,omitempty"`   // Optional VLAN tag
-	VNetID     string `json:"vnet_id,omitempty"`    // Proxmox VNet ID (set by system)
-	Zone       string `json:"zone,omitempty"`       // SDN Zone (set by system)
+	Subnet          string `json:"subnet,omitempty"`            // CIDR notation (e.g., "192.168.1.0/24")
+	Gateway         string `json:"gateway,omitempty"`           // Gateway IP (e.g., "192.168.1.1")
+	Nameserver      string `json:"nameserver,omitempty"`        // DNS server (e.g., "8.8.8.8")
+	VLanTag         int    `json:"vlan_tag,omitempty"`          // Optional VLAN tag
+	VNetID          string `json:"vnet_id,omitempty"`           // Proxmox VNet ID (set by system)
+	Zone            string `json:"zone,omitempty"`              // SDN Zone (set by system)
+	AutoCreatedZone bool   `json:"auto_created_zone,omitempty"` // Whether the zone was auto-created by us
 }
 
 // Project represents a logical grouping of containers

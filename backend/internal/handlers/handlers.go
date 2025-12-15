@@ -894,7 +894,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if req.Network != nil && req.Network.Subnet != "" {
 		log.Printf("[INFO] Creating SDN network for project %s: subnet=%s, gateway=%s", req.Name, req.Network.Subnet, req.Network.Gateway)
 
-		// Get available SDN zones
+		// Get available SDN zones or create a default one
 		zones, err := h.client.GetSDNZones()
 		if err != nil {
 			log.Printf("[ERROR] Failed to get SDN zones: %v", err)
@@ -902,14 +902,25 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var zone string
 		if len(zones) == 0 {
-			respondError(w, http.StatusBadRequest, "no SDN zones available. Please create an SDN zone in Proxmox first")
-			return
-		}
+			// No SDN zones exist, create a default simple zone
+			zone = "proxicloud-zone"
+			log.Printf("[INFO] No SDN zones found, creating default zone: %s", zone)
 
-		// Use the first available zone
-		zone := zones[0].Zone
-		log.Printf("[INFO] Using SDN zone: %s", zone)
+			// Create a simple SDN zone with all cluster nodes
+			if err := h.client.CreateSDNZone(zone, "simple", ""); err != nil {
+				log.Printf("[ERROR] Failed to create default SDN zone: %v", err)
+				respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create default SDN zone: %v", err))
+				return
+			}
+
+			log.Printf("[INFO] Created default SDN zone: %s", zone)
+		} else {
+			// Use the first available zone
+			zone = zones[0].Zone
+			log.Printf("[INFO] Using existing SDN zone: %s", zone)
+		}
 
 		// Generate VNet ID from project name (sanitize for Proxmox naming rules)
 		vnetID := fmt.Sprintf("vnet-%s", strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")))
@@ -958,6 +969,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		// Store VNet ID and zone in the network config for future reference
 		req.Network.VNetID = vnetID
 		req.Network.Zone = zone
+		req.Network.AutoCreatedZone = len(zones) == 0 // Mark if we auto-created the zone
 
 		log.Printf("[INFO] Successfully created SDN network for project %s", req.Name)
 	}
