@@ -12,6 +12,7 @@ export interface Container {
   template?: string;
   os?: string;
   project_id?: string;
+  ip_address?: string;
 }
 
 export interface CreateContainerRequest {

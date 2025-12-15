@@ -17,6 +17,7 @@ type Container struct {
 	Template  string  `json:"template,omitempty"`
 	OS        string  `json:"os,omitempty"`
 	ProjectID string  `json:"project_id,omitempty"` // Associated project ID
+	IPAddress string  `json:"ip_address,omitempty"` // IP address (extracted from network config)
 }
 
 // CreateContainerRequest holds parameters for creating a new container
@@ -36,6 +37,7 @@ type CreateContainerRequest struct {
 	IPAddress  string `json:"ip_address,omitempty"` // IP address with CIDR notation (e.g., "192.168.1.100/24")
 	Gateway    string `json:"gateway,omitempty"`    // Gateway IP address (e.g., "192.168.1.1")
 	Nameserver string `json:"nameserver,omitempty"` // DNS nameserver (e.g., "8.8.8.8")
+	VNetID     string `json:"-"`                    // Internal: VNet ID to use (set by handler from project)
 }
 
 // Template represents a container template
@@ -117,6 +119,8 @@ type ProjectNetwork struct {
 	Gateway    string `json:"gateway,omitempty"`    // Gateway IP (e.g., "192.168.1.1")
 	Nameserver string `json:"nameserver,omitempty"` // DNS server (e.g., "8.8.8.8")
 	VLanTag    int    `json:"vlan_tag,omitempty"`   // Optional VLAN tag
+	VNetID     string `json:"vnet_id,omitempty"`    // Proxmox VNet ID (set by system)
+	Zone       string `json:"zone,omitempty"`       // SDN Zone (set by system)
 }
 
 // Project represents a logical grouping of containers
@@ -248,4 +252,13 @@ type GetStorageRequest struct {
 // ProxmoxResponse is the generic response from Proxmox API
 type ProxmoxResponse struct {
 	Data json.RawMessage `json:"data"`
+}
+
+// SDNZone represents a Proxmox SDN zone
+type SDNZone struct {
+	Zone    string `json:"zone"`
+	Type    string `json:"type"`
+	Pending bool   `json:"pending,omitempty"`
+	Nodes   string `json:"nodes,omitempty"`
+	MTU     int    `json:"mtu,omitempty"`
 }

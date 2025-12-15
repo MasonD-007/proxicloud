@@ -200,6 +200,9 @@ export default function ContainersPage() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                  IP Address
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
                   CPU
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -241,6 +244,13 @@ export default function ContainersPage() {
                     <Badge variant={container.status === 'running' ? 'success' : 'default'}>
                       {container.status}
                     </Badge>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                    {container.ip_address ? (
+                      <span className="font-mono">{container.ip_address}</span>
+                    ) : (
+                      <span className="text-text-muted">DHCP</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
                     {formatCPU(container.cpu)}

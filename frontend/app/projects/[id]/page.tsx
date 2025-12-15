@@ -269,6 +269,7 @@ export default function ProjectDetailsPage() {
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">Name</th>
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">VMID</th>
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">Status</th>
+                  <th className="text-left py-3 px-4 font-medium text-text-secondary">IP Address</th>
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">CPU</th>
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">Memory</th>
                   <th className="text-left py-3 px-4 font-medium text-text-secondary">Uptime</th>
@@ -291,6 +292,13 @@ export default function ProjectDetailsPage() {
                       <Badge variant={container.status === 'running' ? 'success' : 'default'}>
                         {container.status}
                       </Badge>
+                    </td>
+                    <td className="py-3 px-4 text-text-secondary">
+                      {container.ip_address ? (
+                        <span className="font-mono text-sm">{container.ip_address}</span>
+                      ) : (
+                        <span className="text-text-muted">DHCP</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-text-secondary">{formatCPU(container.cpu)}</td>
                     <td className="py-3 px-4 text-text-secondary">

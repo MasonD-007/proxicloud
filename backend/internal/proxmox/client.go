@@ -163,13 +163,44 @@ func (c *Client) GetContainers() ([]Container, error) {
 
 	fmt.Printf("[INFO] GetContainers: parsed %d containers from Proxmox API\n", len(response.Data))
 
-	// Log details of each container for debugging
-	for i, container := range response.Data {
-		fmt.Printf("[DEBUG] Container %d: VMID=%d, Name=%s, Status=%s, CPU=%.2f, Mem=%d, MaxMem=%d\n",
-			i, container.VMID, container.Name, container.Status, container.CPU, container.Mem, container.MaxMem)
+	// Fetch IP addresses for each container
+	for i := range response.Data {
+		container := &response.Data[i]
+		configPath := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, container.VMID)
+		configBody, err := c.doRequest("GET", configPath, nil)
+		if err == nil {
+			var configResponse struct {
+				Data map[string]interface{} `json:"data"`
+			}
+			if err := json.Unmarshal(configBody, &configResponse); err == nil {
+				// Extract IP address from net0 configuration
+				if net0, ok := configResponse.Data["net0"].(string); ok {
+					container.IPAddress = extractIPFromNetConfig(net0)
+				}
+			}
+		}
+
+		fmt.Printf("[DEBUG] Container %d: VMID=%d, Name=%s, Status=%s, IP=%s, CPU=%.2f, Mem=%d, MaxMem=%d\n",
+			i, container.VMID, container.Name, container.Status, container.IPAddress, container.CPU, container.Mem, container.MaxMem)
 	}
 
 	return response.Data, nil
+}
+
+// extractIPFromNetConfig extracts the IP address from a Proxmox network config string
+// Example: "bridge=vmbr0,name=eth0,firewall=1,ip=192.168.1.100/24,gw=192.168.1.1" -> "192.168.1.100/24"
+func extractIPFromNetConfig(netConfig string) string {
+	parts := strings.Split(netConfig, ",")
+	for _, part := range parts {
+		if strings.HasPrefix(part, "ip=") {
+			ip := strings.TrimPrefix(part, "ip=")
+			// Don't return "dhcp" as an IP address
+			if ip != "dhcp" {
+				return ip
+			}
+		}
+	}
+	return ""
 }
 
 // GetContainer retrieves a specific LXC container
@@ -187,7 +218,24 @@ func (c *Client) GetContainer(vmid int) (*Container, error) {
 		return nil, fmt.Errorf("failed to parse container response: %w", err)
 	}
 
-	return &response.Data, nil
+	container := &response.Data
+
+	// Fetch container config to get network information
+	configPath := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, vmid)
+	configBody, err := c.doRequest("GET", configPath, nil)
+	if err == nil {
+		var configResponse struct {
+			Data map[string]interface{} `json:"data"`
+		}
+		if err := json.Unmarshal(configBody, &configResponse); err == nil {
+			// Extract IP address from net0 configuration
+			if net0, ok := configResponse.Data["net0"].(string); ok {
+				container.IPAddress = extractIPFromNetConfig(net0)
+			}
+		}
+	}
+
+	return container, nil
 }
 
 // CreateContainer creates a new LXC container
@@ -204,6 +252,14 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 		"ostemplate": req.OSTemplate,
 	}
 
+	// Determine which bridge to use
+	// If VNetID is set, use the SDN VNet, otherwise use default vmbr0
+	bridge := "vmbr0"
+	if req.VNetID != "" {
+		bridge = req.VNetID
+		log.Printf("[INFO] Using SDN VNet bridge: %s", bridge)
+	}
+
 	// Network configuration
 	// If IP address is provided, configure static IP
 	// Otherwise, use DHCP by default
@@ -211,7 +267,7 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 	// Note: bridge must come first in the config string
 	if req.IPAddress != "" {
 		// Format: net0: bridge=vmbr0,name=eth0,firewall=1,ip=192.168.1.100/24,gw=192.168.1.1
-		netConfig := "bridge=vmbr0,name=eth0,firewall=1,ip=" + req.IPAddress
+		netConfig := fmt.Sprintf("bridge=%s,name=eth0,firewall=1,ip=%s", bridge, req.IPAddress)
 
 		if req.Gateway != "" {
 			netConfig += ",gw=" + req.Gateway
@@ -225,7 +281,7 @@ func (c *Client) CreateContainer(vmid int, req CreateContainerRequest) error {
 		}
 	} else {
 		// Use DHCP if no IP specified
-		params["net0"] = "bridge=vmbr0,name=eth0,firewall=1,ip=dhcp"
+		params["net0"] = fmt.Sprintf("bridge=%s,name=eth0,firewall=1,ip=dhcp", bridge)
 	}
 
 	if req.Password != "" {
@@ -1126,6 +1182,108 @@ func extractVolumeName(volid string) string {
 		return parts[1]
 	}
 	return volid
+}
+
+// CreateVNet creates a VNet in a specified SDN zone
+func (c *Client) CreateVNet(vnetID string, zone string, tag int) error {
+	path := "/cluster/sdn/vnets"
+	fmt.Printf("[DEBUG] CreateVNet: requesting path=%s, vnet=%s, zone=%s, tag=%d\n", path, vnetID, zone, tag)
+
+	params := map[string]interface{}{
+		"vnet": vnetID,
+		"zone": zone,
+	}
+
+	if tag > 0 {
+		params["tag"] = tag
+	}
+
+	_, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return fmt.Errorf("failed to create VNet: %w", err)
+	}
+
+	fmt.Printf("[INFO] CreateVNet: created VNet %s in zone %s\n", vnetID, zone)
+	return nil
+}
+
+// CreateSubnet creates a subnet within a VNet
+func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat bool, dhcpRange string) error {
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets", vnetID)
+	fmt.Printf("[DEBUG] CreateSubnet: requesting path=%s, subnet=%s, gateway=%s, snat=%v\n", path, subnet, gateway, snat)
+
+	params := map[string]interface{}{
+		"subnet": subnet,
+	}
+
+	if gateway != "" {
+		params["gateway"] = gateway
+	}
+
+	if snat {
+		params["snat"] = 1
+	}
+
+	if dhcpRange != "" {
+		params["dhcp-range"] = dhcpRange
+	}
+
+	_, err := c.doRequest("POST", path, params)
+	if err != nil {
+		return fmt.Errorf("failed to create subnet: %w", err)
+	}
+
+	fmt.Printf("[INFO] CreateSubnet: created subnet %s in VNet %s\n", subnet, vnetID)
+	return nil
+}
+
+// ApplySDNConfig applies the SDN configuration (equivalent to pressing "Apply" in GUI)
+func (c *Client) ApplySDNConfig() error {
+	path := "/cluster/sdn"
+	fmt.Printf("[DEBUG] ApplySDNConfig: requesting path=%s\n", path)
+
+	_, err := c.doRequest("PUT", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to apply SDN config: %w", err)
+	}
+
+	fmt.Printf("[INFO] ApplySDNConfig: SDN configuration applied successfully\n")
+	return nil
+}
+
+// DeleteVNet deletes a VNet
+func (c *Client) DeleteVNet(vnetID string) error {
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s", vnetID)
+	fmt.Printf("[DEBUG] DeleteVNet: requesting path=%s\n", path)
+
+	_, err := c.doRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete VNet: %w", err)
+	}
+
+	fmt.Printf("[INFO] DeleteVNet: deleted VNet %s\n", vnetID)
+	return nil
+}
+
+// GetSDNZones retrieves all available SDN zones
+func (c *Client) GetSDNZones() ([]SDNZone, error) {
+	path := "/cluster/sdn/zones"
+	fmt.Printf("[DEBUG] GetSDNZones: requesting path=%s\n", path)
+
+	respBody, err := c.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SDN zones: %w", err)
+	}
+
+	var response struct {
+		Data []SDNZone `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse SDN zones response: %w", err)
+	}
+
+	fmt.Printf("[INFO] GetSDNZones: found %d SDN zones\n", len(response.Data))
+	return response.Data, nil
 }
 
 // GetStorage retrieves status for all datastores on the node

@@ -239,6 +239,30 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[INFO] Using auto-generated VMID: %d", vmid)
 	}
 
+	// If container is assigned to a project with network configuration, use project's VNet
+	if req.ProjectID != "" && h.projectStore != nil {
+		project, err := h.projectStore.GetProject(req.ProjectID)
+		if err == nil && project.Network != nil && project.Network.VNetID != "" {
+			log.Printf("[INFO] Container assigned to project %s with VNet %s", req.ProjectID, project.Network.VNetID)
+
+			// If user didn't specify network config, use project defaults
+			if req.IPAddress == "" && req.Gateway == "" {
+				// Use project's gateway if available
+				if project.Network.Gateway != "" {
+					req.Gateway = project.Network.Gateway
+				}
+				// Use project's nameserver if available
+				if project.Network.Nameserver != "" {
+					req.Nameserver = project.Network.Nameserver
+				}
+				log.Printf("[INFO] Applied project network defaults: gateway=%s, nameserver=%s", req.Gateway, req.Nameserver)
+			}
+
+			// Set the VNet ID to use for container creation
+			req.VNetID = project.Network.VNetID
+		}
+	}
+
 	if err := h.client.CreateContainer(vmid, req); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -866,6 +890,78 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If network configuration is provided, create VNet and subnet in Proxmox SDN
+	if req.Network != nil && req.Network.Subnet != "" {
+		log.Printf("[INFO] Creating SDN network for project %s: subnet=%s, gateway=%s", req.Name, req.Network.Subnet, req.Network.Gateway)
+
+		// Get available SDN zones
+		zones, err := h.client.GetSDNZones()
+		if err != nil {
+			log.Printf("[ERROR] Failed to get SDN zones: %v", err)
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get SDN zones: %v", err))
+			return
+		}
+
+		if len(zones) == 0 {
+			respondError(w, http.StatusBadRequest, "no SDN zones available. Please create an SDN zone in Proxmox first")
+			return
+		}
+
+		// Use the first available zone
+		zone := zones[0].Zone
+		log.Printf("[INFO] Using SDN zone: %s", zone)
+
+		// Generate VNet ID from project name (sanitize for Proxmox naming rules)
+		vnetID := fmt.Sprintf("vnet-%s", strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")))
+		// Ensure VNet ID doesn't exceed Proxmox limits and contains only valid characters
+		vnetID = strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+				return r
+			}
+			return -1
+		}, vnetID)
+
+		if len(vnetID) > 8 {
+			vnetID = vnetID[:8]
+		}
+
+		log.Printf("[INFO] Creating VNet: %s in zone: %s", vnetID, zone)
+
+		// Create VNet
+		if err := h.client.CreateVNet(vnetID, zone, req.Network.VLanTag); err != nil {
+			log.Printf("[ERROR] Failed to create VNet: %v", err)
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create VNet: %v", err))
+			return
+		}
+
+		// Create Subnet
+		log.Printf("[INFO] Creating subnet: %s with gateway: %s", req.Network.Subnet, req.Network.Gateway)
+		if err := h.client.CreateSubnet(vnetID, req.Network.Subnet, req.Network.Gateway, true, ""); err != nil {
+			// Try to cleanup VNet if subnet creation fails
+			log.Printf("[ERROR] Failed to create subnet: %v, attempting to cleanup VNet", err)
+			if cleanupErr := h.client.DeleteVNet(vnetID); cleanupErr != nil {
+				log.Printf("[WARNING] Failed to cleanup VNet after subnet creation failure: %v", cleanupErr)
+			}
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create subnet: %v", err))
+			return
+		}
+
+		// Apply SDN configuration
+		log.Printf("[INFO] Applying SDN configuration")
+		if err := h.client.ApplySDNConfig(); err != nil {
+			log.Printf("[ERROR] Failed to apply SDN config: %v", err)
+			// Note: We don't fail the whole operation here as the VNet/subnet were created
+			// The user can manually apply the config from Proxmox GUI
+			log.Printf("[WARNING] SDN configuration not applied, please apply manually from Proxmox GUI")
+		}
+
+		// Store VNet ID and zone in the network config for future reference
+		req.Network.VNetID = vnetID
+		req.Network.Zone = zone
+
+		log.Printf("[INFO] Successfully created SDN network for project %s", req.Name)
+	}
+
 	project, err := h.projectStore.CreateProject(req)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -955,6 +1051,13 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Get project to check for VNet cleanup
+	project, err := h.projectStore.GetProject(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
 	// Now try to delete the project
 	err = h.projectStore.DeleteProject(id)
 	if err != nil {
@@ -970,6 +1073,22 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusInternalServerError, err.Error())
 		}
 		return
+	}
+
+	// Clean up VNet if one was created for this project
+	if project.Network != nil && project.Network.VNetID != "" {
+		log.Printf("[INFO] Cleaning up VNet %s for deleted project %s", project.Network.VNetID, id)
+		if err := h.client.DeleteVNet(project.Network.VNetID); err != nil {
+			log.Printf("[WARNING] Failed to delete VNet %s: %v", project.Network.VNetID, err)
+			// Don't fail the delete operation if VNet cleanup fails
+			// The VNet can be manually deleted from Proxmox GUI
+		} else {
+			// Apply SDN configuration after deleting VNet
+			log.Printf("[INFO] Applying SDN configuration after VNet deletion")
+			if err := h.client.ApplySDNConfig(); err != nil {
+				log.Printf("[WARNING] Failed to apply SDN config after VNet deletion: %v", err)
+			}
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)

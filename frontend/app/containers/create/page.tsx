@@ -88,24 +88,25 @@ export default function CreateContainerPage() {
       // Auto-populate network settings if project has network config
       if (project.network) {
         setUseDHCP(false);
+        const network = project.network;
         
         // Calculate next available IP from subnet if provided
-        if (project.network.subnet) {
+        if (network.subnet) {
           // Extract base IP from subnet (e.g., "192.168.1.0/24" -> "192.168.1.")
-          const subnetParts = project.network.subnet.split('/')[0].split('.');
+          const subnetParts = network.subnet.split('/')[0].split('.');
           if (subnetParts.length === 4) {
             // Suggest the next IP (e.g., 192.168.1.10/24)
-            const suggestedIP = `${subnetParts[0]}.${subnetParts[1]}.${subnetParts[2]}.10/${project.network.subnet.split('/')[1]}`;
+            const suggestedIP = `${subnetParts[0]}.${subnetParts[1]}.${subnetParts[2]}.10/${network.subnet.split('/')[1]}`;
             setFormData((prev) => ({ ...prev, ip_address: suggestedIP }));
           }
         }
         
-        if (project.network.gateway) {
-          setFormData((prev) => ({ ...prev, gateway: project.network.gateway }));
+        if (network.gateway) {
+          setFormData((prev) => ({ ...prev, gateway: network.gateway }));
         }
         
-        if (project.network.nameserver) {
-          setFormData((prev) => ({ ...prev, nameserver: project.network.nameserver }));
+        if (network.nameserver) {
+          setFormData((prev) => ({ ...prev, nameserver: network.nameserver }));
         }
       }
     } catch (err) {

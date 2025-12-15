@@ -52,7 +52,11 @@ func main() {
 		log.Printf("Warning: Failed to initialize cache: %v (continuing without cache)", err)
 		cacheInstance = nil
 	} else {
-		defer cacheInstance.Close()
+		defer func() {
+			if err := cacheInstance.Close(); err != nil {
+				log.Printf("Error closing cache: %v", err)
+			}
+		}()
 		log.Printf("Cache initialized at %s", cacheDB)
 	}
 
