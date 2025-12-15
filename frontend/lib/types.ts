@@ -148,6 +148,8 @@ export interface Project {
   description?: string;
   tags?: string[];
   network?: ProjectNetwork;
+  container_id_start?: number;  // Start of container ID range
+  container_id_end?: number;    // End of container ID range
   container_count: number;
   created_at: number; // Unix timestamp
   updated_at: number; // Unix timestamp
@@ -171,6 +173,8 @@ export interface CreateProjectRequest {
   description?: string;
   tags?: string[];
   network?: ProjectNetwork;
+  container_id_start?: number;  // Start of container ID range
+  container_id_end?: number;    // End of container ID range
 }
 
 export interface UpdateProjectRequest {
@@ -178,6 +182,8 @@ export interface UpdateProjectRequest {
   description?: string;
   tags?: string[];
   network?: ProjectNetwork;
+  container_id_start?: number;  // Start of container ID range
+  container_id_end?: number;    // End of container ID range
 }
 
 export interface AssignProjectRequest {

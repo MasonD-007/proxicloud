@@ -26,6 +26,7 @@ export default function CreateProjectPage() {
   const [subnetError, setSubnetError] = useState<string | null>(null);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [dhcpPreview, setDhcpPreview] = useState<string>('');
+  const [idRangeError, setIdRangeError] = useState<string | null>(null);
 
   // Validate network fields in real-time
   useEffect(() => {
@@ -65,6 +66,30 @@ export default function CreateProjectPage() {
     }
   }, [formData.network, enableNetwork, subnetError]);
 
+  // Validate container ID range in real-time
+  useEffect(() => {
+    if (formData.container_id_start && formData.container_id_end) {
+      const start = formData.container_id_start;
+      const end = formData.container_id_end;
+
+      if (start < 100) {
+        setIdRangeError('Start ID must be at least 100');
+      } else if (end < 100) {
+        setIdRangeError('End ID must be at least 100');
+      } else if (start > end) {
+        setIdRangeError('Start ID must be less than or equal to End ID');
+      } else if (end - start < 0) {
+        setIdRangeError('Invalid range');
+      } else {
+        setIdRangeError(null);
+      }
+    } else if (formData.container_id_start || formData.container_id_end) {
+      setIdRangeError('Both Start ID and End ID must be provided');
+    } else {
+      setIdRangeError(null);
+    }
+  }, [formData.container_id_start, formData.container_id_end]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
@@ -87,6 +112,12 @@ export default function CreateProjectPage() {
         setError('Please fix network validation errors before submitting');
         return;
       }
+    }
+
+    // Validate container ID range
+    if (idRangeError) {
+      setError('Please fix container ID range errors before submitting');
+      return;
     }
 
     try {
@@ -198,6 +229,83 @@ export default function CreateProjectPage() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Container ID Range Section */}
+          <div className="border-t border-border pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-text-primary">
+                  Container ID Range (Optional)
+                </label>
+              </div>
+              <p className="text-sm text-text-muted">
+                Reserve a range of container IDs for this project. Containers created in this project will automatically use IDs from this range.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    Start ID
+                  </label>
+                  <Input
+                    type="number"
+                    min="100"
+                    max="999999"
+                    value={formData.container_id_start || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      container_id_start: e.target.value ? parseInt(e.target.value) : undefined 
+                    })}
+                    placeholder="e.g., 200"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    First container ID in range (minimum: 100)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    End ID
+                  </label>
+                  <Input
+                    type="number"
+                    min="100"
+                    max="999999"
+                    value={formData.container_id_end || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      container_id_end: e.target.value ? parseInt(e.target.value) : undefined 
+                    })}
+                    placeholder="e.g., 299"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    Last container ID in range
+                  </p>
+                </div>
+              </div>
+
+              {idRangeError && (
+                <div className="p-3 bg-error/10 border border-error rounded-lg">
+                  <p className="text-sm text-error flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {idRangeError}
+                  </p>
+                </div>
+              )}
+
+              {!idRangeError && formData.container_id_start && formData.container_id_end && (
+                <div className="p-3 bg-background-elevated border border-border rounded-lg">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-4 h-4 text-success" />
+                    <span className="font-medium text-text-primary">Range Size: </span>
+                    <span className="text-text-secondary">
+                      {formData.container_id_end - formData.container_id_start + 1} container IDs ({formData.container_id_start}-{formData.container_id_end})
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Network Configuration Section */}

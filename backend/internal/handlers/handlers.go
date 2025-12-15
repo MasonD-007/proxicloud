@@ -232,6 +232,17 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		vmid = *req.VMID
 		log.Printf("[INFO] Using user-specified VMID: %d", vmid)
 
+		// If container is assigned to a project with ID range, validate it's within range
+		if req.ProjectID != "" && h.projectStore != nil {
+			project, err := h.projectStore.GetProject(req.ProjectID)
+			if err == nil && project.ContainerIDStart != nil && project.ContainerIDEnd != nil {
+				if vmid < *project.ContainerIDStart || vmid > *project.ContainerIDEnd {
+					respondError(w, http.StatusBadRequest, fmt.Sprintf("VMID %d is outside project's container ID range %d-%d", vmid, *project.ContainerIDStart, *project.ContainerIDEnd))
+					return
+				}
+			}
+		}
+
 		// Verify the VMID is not already in use
 		_, err := h.client.GetContainer(vmid)
 		if err == nil {
@@ -242,13 +253,34 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		// If error is not nil, the VMID is likely available (or there's another issue)
 		// We'll let Proxmox handle the final validation
 	} else {
-		// Get next available VMID
-		vmid, err = h.client.GetNextVMID()
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
+		// If container is assigned to a project with ID range, use project's range
+		if req.ProjectID != "" && h.projectStore != nil {
+			project, err := h.projectStore.GetProject(req.ProjectID)
+			if err == nil && project.ContainerIDStart != nil && project.ContainerIDEnd != nil {
+				vmid, err = h.projectStore.GetNextContainerIDInRange(req.ProjectID)
+				if err != nil {
+					respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to allocate container ID from project range: %v", err))
+					return
+				}
+				log.Printf("[INFO] Using project-allocated VMID: %d (from range %d-%d)", vmid, *project.ContainerIDStart, *project.ContainerIDEnd)
+			} else {
+				// Project doesn't have ID range, use global next VMID
+				vmid, err = h.client.GetNextVMID()
+				if err != nil {
+					respondError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+				log.Printf("[INFO] Using auto-generated VMID: %d", vmid)
+			}
+		} else {
+			// No project or no projectStore, get next available VMID
+			vmid, err = h.client.GetNextVMID()
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			log.Printf("[INFO] Using auto-generated VMID: %d", vmid)
 		}
-		log.Printf("[INFO] Using auto-generated VMID: %d", vmid)
 	}
 
 	// If container is assigned to a project with network configuration, use project's VNet

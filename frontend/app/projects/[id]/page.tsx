@@ -214,6 +214,36 @@ export default function ProjectDetailsPage() {
         </Card>
       </div>
 
+      {/* Container ID Range */}
+      {project.container_id_start && project.container_id_end && (
+        <Card>
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-text-primary">Container ID Range</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <div className="text-sm text-text-secondary mb-1">Start ID</div>
+                <div className="text-text-primary font-mono text-lg">{project.container_id_start}</div>
+              </div>
+              <div>
+                <div className="text-sm text-text-secondary mb-1">End ID</div>
+                <div className="text-text-primary font-mono text-lg">{project.container_id_end}</div>
+              </div>
+              <div>
+                <div className="text-sm text-text-secondary mb-1">Available IDs</div>
+                <div className="text-text-primary font-mono text-lg">
+                  {project.container_id_end - project.container_id_start + 1}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-background-elevated rounded-lg border border-border">
+              <p className="text-sm text-text-secondary">
+                Containers created in this project will automatically use IDs from this range ({project.container_id_start}-{project.container_id_end}). You don&apos;t need to specify a container ID manually.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Network Configuration */}
       {project.network && (
         <Card>

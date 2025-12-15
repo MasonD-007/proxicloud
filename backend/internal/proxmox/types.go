@@ -126,29 +126,35 @@ type ProjectNetwork struct {
 
 // Project represents a logical grouping of containers
 type Project struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Tags        []string        `json:"tags,omitempty"`
-	Network     *ProjectNetwork `json:"network,omitempty"`
-	CreatedAt   int64           `json:"created_at"`
-	UpdatedAt   int64           `json:"updated_at"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Description      string          `json:"description,omitempty"`
+	Tags             []string        `json:"tags,omitempty"`
+	Network          *ProjectNetwork `json:"network,omitempty"`
+	ContainerIDStart *int            `json:"container_id_start,omitempty"` // Start of container ID range (e.g., 200)
+	ContainerIDEnd   *int            `json:"container_id_end,omitempty"`   // End of container ID range (e.g., 299)
+	CreatedAt        int64           `json:"created_at"`
+	UpdatedAt        int64           `json:"updated_at"`
 }
 
 // CreateProjectRequest holds parameters for creating a new project
 type CreateProjectRequest struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Tags        []string        `json:"tags,omitempty"`
-	Network     *ProjectNetwork `json:"network,omitempty"`
+	Name             string          `json:"name"`
+	Description      string          `json:"description,omitempty"`
+	Tags             []string        `json:"tags,omitempty"`
+	Network          *ProjectNetwork `json:"network,omitempty"`
+	ContainerIDStart *int            `json:"container_id_start,omitempty"` // Start of container ID range (e.g., 200)
+	ContainerIDEnd   *int            `json:"container_id_end,omitempty"`   // End of container ID range (e.g., 299)
 }
 
 // UpdateProjectRequest holds parameters for updating a project
 type UpdateProjectRequest struct {
-	Name        string          `json:"name,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Tags        []string        `json:"tags,omitempty"`
-	Network     *ProjectNetwork `json:"network,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	Tags             []string        `json:"tags,omitempty"`
+	Network          *ProjectNetwork `json:"network,omitempty"`
+	ContainerIDStart *int            `json:"container_id_start,omitempty"` // Start of container ID range
+	ContainerIDEnd   *int            `json:"container_id_end,omitempty"`   // End of container ID range
 }
 
 // AssignProjectRequest holds parameters for assigning a container to a project

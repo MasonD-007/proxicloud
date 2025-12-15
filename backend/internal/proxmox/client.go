@@ -1240,11 +1240,16 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 
 // DeleteSubnet deletes a subnet from a VNet
 func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
+	// Proxmox doesn't support DELETE for subnets, use PUT with delete parameter
 	// URL encode the subnet CIDR (e.g., "10.0.1.0/24" → "10.0.1.0%2F24")
 	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, url.PathEscape(subnet))
 	fmt.Printf("[DEBUG] DeleteSubnet: requesting path=%s\n", path)
 
-	_, err := c.doRequest("DELETE", path, nil)
+	params := map[string]interface{}{
+		"delete": 1,
+	}
+
+	_, err := c.doRequest("PUT", path, params)
 	if err != nil {
 		return fmt.Errorf("failed to delete subnet: %w", err)
 	}

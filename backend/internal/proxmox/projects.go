@@ -136,15 +136,31 @@ func (ps *ProjectStore) CreateProjectWithID(id string, req CreateProjectRequest)
 		}
 	}
 
+	// Validate container ID range if provided
+	if req.ContainerIDStart != nil && req.ContainerIDEnd != nil {
+		// Temporarily unlock to call ValidateContainerIDRange (which needs read lock)
+		ps.mu.Unlock()
+		err := ps.ValidateContainerIDRange(id, *req.ContainerIDStart, *req.ContainerIDEnd)
+		ps.mu.Lock()
+		if err != nil {
+			return nil, fmt.Errorf("invalid container ID range: %w", err)
+		}
+	} else if req.ContainerIDStart != nil || req.ContainerIDEnd != nil {
+		// Both must be provided or neither
+		return nil, fmt.Errorf("both container_id_start and container_id_end must be provided together")
+	}
+
 	now := time.Now().Unix()
 	project := &Project{
-		ID:          id,
-		Name:        req.Name,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Network:     req.Network,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:               id,
+		Name:             req.Name,
+		Description:      req.Description,
+		Tags:             req.Tags,
+		Network:          req.Network,
+		ContainerIDStart: req.ContainerIDStart,
+		ContainerIDEnd:   req.ContainerIDEnd,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	ps.projects[project.ID] = project
@@ -210,6 +226,12 @@ func (ps *ProjectStore) UpdateProject(id string, req UpdateProjectRequest) (*Pro
 	}
 	if req.Network != nil {
 		project.Network = req.Network
+	}
+	if req.ContainerIDStart != nil {
+		project.ContainerIDStart = req.ContainerIDStart
+	}
+	if req.ContainerIDEnd != nil {
+		project.ContainerIDEnd = req.ContainerIDEnd
 	}
 	project.UpdatedAt = time.Now().Unix()
 
@@ -293,4 +315,85 @@ func (ps *ProjectStore) GetProjectContainers(projectID string) []int {
 	}
 
 	return vmids
+}
+
+// ValidateContainerIDRange validates that a container ID range is valid and doesn't overlap with existing projects
+func (ps *ProjectStore) ValidateContainerIDRange(projectID string, start, end int) error {
+	if start <= 0 {
+		return fmt.Errorf("container_id_start must be greater than 0")
+	}
+	if end <= 0 {
+		return fmt.Errorf("container_id_end must be greater than 0")
+	}
+	if start > end {
+		return fmt.Errorf("container_id_start (%d) must be less than or equal to container_id_end (%d)", start, end)
+	}
+	if start < 100 {
+		return fmt.Errorf("container_id_start must be >= 100 (Proxmox reserves IDs below 100)")
+	}
+
+	// Check for overlaps with other projects
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	for pid, project := range ps.projects {
+		// Skip the project being updated
+		if pid == projectID {
+			continue
+		}
+
+		// Skip projects without ID ranges
+		if project.ContainerIDStart == nil || project.ContainerIDEnd == nil {
+			continue
+		}
+
+		existingStart := *project.ContainerIDStart
+		existingEnd := *project.ContainerIDEnd
+
+		// Check for overlap: ranges overlap if one starts before the other ends
+		if (start >= existingStart && start <= existingEnd) ||
+			(end >= existingStart && end <= existingEnd) ||
+			(start <= existingStart && end >= existingEnd) {
+			return fmt.Errorf("container ID range %d-%d overlaps with project '%s' range %d-%d",
+				start, end, project.Name, existingStart, existingEnd)
+		}
+	}
+
+	return nil
+}
+
+// GetNextContainerIDInRange returns the next available container ID within a project's range
+func (ps *ProjectStore) GetNextContainerIDInRange(projectID string) (int, error) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	project, exists := ps.projects[projectID]
+	if !exists {
+		return 0, fmt.Errorf("project not found: %s", projectID)
+	}
+
+	// Check if project has a container ID range configured
+	if project.ContainerIDStart == nil || project.ContainerIDEnd == nil {
+		return 0, fmt.Errorf("project '%s' does not have a container ID range configured", project.Name)
+	}
+
+	start := *project.ContainerIDStart
+	end := *project.ContainerIDEnd
+
+	// Get all container IDs in this project
+	usedIDs := make(map[int]bool)
+	for vmid, pid := range ps.vmidMap {
+		if pid == projectID {
+			usedIDs[vmid] = true
+		}
+	}
+
+	// Find the first available ID in the range
+	for id := start; id <= end; id++ {
+		if !usedIDs[id] {
+			return id, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no available container IDs in range %d-%d for project '%s'", start, end, project.Name)
 }
