@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Network } from 'lucide-react';
+import { ArrowLeft, Network, AlertCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { createProject } from '@/lib/api';
+import { validateCIDR, validateGatewayInSubnet, calculateDHCPRangePreview } from '@/lib/network-utils';
 import type { CreateProjectRequest } from '@/lib/types';
 
 export default function CreateProjectPage() {
@@ -22,6 +23,47 @@ export default function CreateProjectPage() {
   });
   const [tagInput, setTagInput] = useState('');
   const [enableNetwork, setEnableNetwork] = useState(false);
+  const [subnetError, setSubnetError] = useState<string | null>(null);
+  const [gatewayError, setGatewayError] = useState<string | null>(null);
+  const [dhcpPreview, setDhcpPreview] = useState<string>('');
+
+  // Validate network fields in real-time
+  useEffect(() => {
+    if (enableNetwork && formData.network) {
+      // Validate subnet
+      if (formData.network.subnet) {
+        const subnetValidation = validateCIDR(formData.network.subnet);
+        setSubnetError(subnetValidation.valid ? null : subnetValidation.error || 'Invalid subnet');
+      } else {
+        setSubnetError(null);
+      }
+
+      // Validate gateway
+      if (formData.network.gateway) {
+        if (formData.network.subnet) {
+          const gatewayValidation = validateGatewayInSubnet(formData.network.subnet, formData.network.gateway);
+          setGatewayError(gatewayValidation.valid ? null : gatewayValidation.error || 'Invalid gateway');
+
+          // Calculate DHCP preview if both are valid
+          if (!subnetError && !gatewayValidation.error) {
+            setDhcpPreview(calculateDHCPRangePreview(formData.network.subnet, formData.network.gateway));
+          } else {
+            setDhcpPreview('');
+          }
+        } else {
+          setGatewayError('Subnet must be specified first');
+          setDhcpPreview('');
+        }
+      } else {
+        setGatewayError(null);
+        setDhcpPreview('');
+      }
+    } else {
+      setSubnetError(null);
+      setGatewayError(null);
+      setDhcpPreview('');
+    }
+  }, [formData.network, enableNetwork, subnetError]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +71,22 @@ export default function CreateProjectPage() {
     if (!formData.name.trim()) {
       setError('Project name is required');
       return;
+    }
+
+    // Validate network if enabled
+    if (enableNetwork) {
+      if (!formData.network?.subnet) {
+        setError('Subnet is required when network is enabled');
+        return;
+      }
+      if (!formData.network?.gateway) {
+        setError('Gateway is required when network is enabled');
+        return;
+      }
+      if (subnetError || gatewayError) {
+        setError('Please fix network validation errors before submitting');
+        return;
+      }
     }
 
     try {
@@ -148,7 +206,7 @@ export default function CreateProjectPage() {
               <div className="flex items-center gap-2">
                 <Network className="w-5 h-5 text-primary" />
                 <label className="text-sm font-medium text-text-primary">
-                  Network Configuration (Optional)
+                  Dedicated Network (Optional)
                 </label>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -175,48 +233,104 @@ export default function CreateProjectPage() {
             {enableNetwork && (
               <div className="space-y-4 pl-7">
                 <p className="text-sm text-text-muted mb-4">
-                  Configure a default network for this project. New containers will automatically use these settings.
+                  Configure a dedicated network for this project. Each project gets its own isolated subnet with automatic DHCP.
                 </p>
                 
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-2">
-                    Subnet (CIDR)
+                    Subnet (CIDR) *
                   </label>
-                  <Input
-                    type="text"
-                    value={formData.network?.subnet || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      network: { ...formData.network, subnet: e.target.value } 
-                    })}
-                    placeholder="e.g., 192.168.1.0/24"
-                  />
-                  <p className="text-xs text-text-muted mt-1">
-                    The network subnet in CIDR notation
-                  </p>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={formData.network?.subnet || ''}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        network: { ...formData.network, subnet: e.target.value } 
+                      })}
+                      placeholder="e.g., 10.0.1.0/24"
+                      required={enableNetwork}
+                      className={subnetError ? 'border-error' : formData.network?.subnet && !subnetError ? 'border-success' : ''}
+                    />
+                    {formData.network?.subnet && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {subnetError ? (
+                          <AlertCircle className="w-4 h-4 text-error" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-success" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {subnetError && (
+                    <p className="text-xs text-error mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {subnetError}
+                    </p>
+                  )}
+                  {!subnetError && (
+                    <p className="text-xs text-text-muted mt-1">
+                      The network subnet in CIDR notation (must be network address, e.g., 10.0.1.0/24)
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-2">
-                    Gateway
+                    Gateway *
                   </label>
-                  <Input
-                    type="text"
-                    value={formData.network?.gateway || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      network: { ...formData.network, gateway: e.target.value } 
-                    })}
-                    placeholder="e.g., 192.168.1.1"
-                  />
-                  <p className="text-xs text-text-muted mt-1">
-                    Default gateway for containers in this project
-                  </p>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={formData.network?.gateway || ''}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        network: { ...formData.network, gateway: e.target.value } 
+                      })}
+                      placeholder="e.g., 10.0.1.1"
+                      required={enableNetwork}
+                      className={gatewayError ? 'border-error' : formData.network?.gateway && !gatewayError ? 'border-success' : ''}
+                    />
+                    {formData.network?.gateway && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {gatewayError ? (
+                          <AlertCircle className="w-4 h-4 text-error" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-success" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {gatewayError && (
+                    <p className="text-xs text-error mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {gatewayError}
+                    </p>
+                  )}
+                  {!gatewayError && (
+                    <p className="text-xs text-text-muted mt-1">
+                      Default gateway for containers (must be within subnet)
+                    </p>
+                  )}
                 </div>
+
+                {/* DHCP Range Preview */}
+                {dhcpPreview && (
+                  <div className="p-3 bg-background-elevated border border-border rounded-lg">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Network className="w-4 h-4 text-primary" />
+                      <span className="font-medium text-text-primary">DHCP Range Preview:</span>
+                      <span className="text-text-secondary">{dhcpPreview}</span>
+                    </div>
+                    <p className="text-xs text-text-muted mt-1 ml-6">
+                      Containers will automatically receive IPs from this range
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-2">
-                    DNS Nameserver
+                    DNS Nameserver (Optional)
                   </label>
                   <Input
                     type="text"
@@ -228,7 +342,7 @@ export default function CreateProjectPage() {
                     placeholder="e.g., 8.8.8.8"
                   />
                   <p className="text-xs text-text-muted mt-1">
-                    DNS server for name resolution
+                    DNS server for name resolution (defaults to 8.8.8.8 if not specified)
                   </p>
                 </div>
 

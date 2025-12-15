@@ -1237,6 +1237,21 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 	return nil
 }
 
+// DeleteSubnet deletes a subnet from a VNet
+func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
+	// URL encode the subnet CIDR (e.g., "10.0.1.0/24" → "10.0.1.0%2F24")
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, url.PathEscape(subnet))
+	fmt.Printf("[DEBUG] DeleteSubnet: requesting path=%s\n", path)
+
+	_, err := c.doRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete subnet: %w", err)
+	}
+
+	fmt.Printf("[INFO] DeleteSubnet: deleted subnet %s from VNet %s\n", subnet, vnetID)
+	return nil
+}
+
 // ApplySDNConfig applies the SDN configuration (equivalent to pressing "Apply" in GUI)
 func (c *Client) ApplySDNConfig() error {
 	path := "/cluster/sdn"
@@ -1287,9 +1302,9 @@ func (c *Client) GetSDNZones() ([]SDNZone, error) {
 }
 
 // CreateSDNZone creates a new SDN zone
-func (c *Client) CreateSDNZone(zoneID string, zoneType string, nodes string) error {
+func (c *Client) CreateSDNZone(zoneID string, zoneType string, nodes string, dhcp bool) error {
 	path := "/cluster/sdn/zones"
-	fmt.Printf("[DEBUG] CreateSDNZone: requesting path=%s, zone=%s, type=%s, nodes=%s\n", path, zoneID, zoneType, nodes)
+	fmt.Printf("[DEBUG] CreateSDNZone: requesting path=%s, zone=%s, type=%s, nodes=%s, dhcp=%v\n", path, zoneID, zoneType, nodes, dhcp)
 
 	params := map[string]interface{}{
 		"zone": zoneID,
@@ -1300,12 +1315,16 @@ func (c *Client) CreateSDNZone(zoneID string, zoneType string, nodes string) err
 		params["nodes"] = nodes
 	}
 
+	if dhcp {
+		params["dhcp"] = "dnsmasq"
+	}
+
 	_, err := c.doRequest("POST", path, params)
 	if err != nil {
 		return fmt.Errorf("failed to create SDN zone: %w", err)
 	}
 
-	fmt.Printf("[INFO] CreateSDNZone: created SDN zone %s of type %s\n", zoneID, zoneType)
+	fmt.Printf("[INFO] CreateSDNZone: created SDN zone %s of type %s with DHCP=%v\n", zoneID, zoneType, dhcp)
 	return nil
 }
 

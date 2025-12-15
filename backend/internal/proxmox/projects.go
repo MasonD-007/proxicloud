@@ -108,8 +108,19 @@ func (ps *ProjectStore) save() error {
 	return nil
 }
 
-// CreateProject creates a new project
+// CreateProject creates a new project with auto-generated ID
 func (ps *ProjectStore) CreateProject(req CreateProjectRequest) (*Project, error) {
+	// Generate ID
+	id, err := generateID()
+	if err != nil {
+		return nil, err
+	}
+
+	return ps.CreateProjectWithID(id, req)
+}
+
+// CreateProjectWithID creates a new project with a specific ID (used for SDN identifier generation)
+func (ps *ProjectStore) CreateProjectWithID(id string, req CreateProjectRequest) (*Project, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
@@ -123,12 +134,6 @@ func (ps *ProjectStore) CreateProject(req CreateProjectRequest) (*Project, error
 		if p.Name == req.Name {
 			return nil, fmt.Errorf("project with name '%s' already exists", req.Name)
 		}
-	}
-
-	// Generate ID
-	id, err := generateID()
-	if err != nil {
-		return nil, err
 	}
 
 	now := time.Now().Unix()

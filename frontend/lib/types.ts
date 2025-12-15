@@ -137,6 +137,9 @@ export interface ProjectNetwork {
   gateway?: string;     // Gateway IP (e.g., "192.168.1.1")
   nameserver?: string;  // DNS server (e.g., "8.8.8.8")
   vlan_tag?: number;    // Optional VLAN tag
+  vnet_id?: string;     // Proxmox VNet ID (set by system)
+  zone?: string;        // SDN Zone (set by system)
+  auto_created_zone?: boolean;  // Whether the zone was auto-created
 }
 
 export interface Project {

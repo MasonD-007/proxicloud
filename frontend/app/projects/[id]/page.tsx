@@ -49,7 +49,12 @@ export default function ProjectDetailsPage() {
   async function handleDelete() {
     if (!project) return;
     
-    if (!confirm(`Are you sure you want to delete project "${project.name}"? This will only work if no containers are assigned to it.`)) {
+    const hasNetwork = project.network && project.network.vnet_id;
+    const message = hasNetwork
+      ? `Delete project "${project.name}"?\n\nThis will remove the project and its dedicated network (SDN zone/vnet). Make sure all containers are deleted first.`
+      : `Delete project "${project.name}"?\n\nMake sure all containers are deleted first.`;
+    
+    if (!confirm(message)) {
       return;
     }
 
@@ -57,7 +62,12 @@ export default function ProjectDetailsPage() {
       await deleteProject(projectId);
       router.push('/projects');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete project');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
+      if (errorMessage.includes('container(s) still assigned')) {
+        alert(`Cannot delete project: Containers still exist.\n\nPlease delete all containers in this project first.`);
+      } else {
+        alert(errorMessage);
+      }
     }
   }
 
@@ -209,38 +219,60 @@ export default function ProjectDetailsPage() {
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <Network className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-semibold text-text-primary">Network Configuration</h2>
+            <h2 className="text-xl font-semibold text-text-primary">Dedicated Network</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {project.network.subnet && (
               <div>
-                <div className="text-sm text-text-secondary mb-1">Subnet</div>
-                <div className="text-text-primary font-mono">{project.network.subnet}</div>
+                <div className="text-sm text-text-secondary mb-1">Subnet (CIDR)</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.subnet}</div>
               </div>
             )}
             {project.network.gateway && (
               <div>
                 <div className="text-sm text-text-secondary mb-1">Gateway</div>
-                <div className="text-text-primary font-mono">{project.network.gateway}</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.gateway}</div>
+              </div>
+            )}
+            {project.network.vnet_id && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">VNet ID</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.vnet_id}</div>
+              </div>
+            )}
+            {project.network.zone && (
+              <div>
+                <div className="text-sm text-text-secondary mb-1">SDN Zone</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.zone}</div>
               </div>
             )}
             {project.network.nameserver && (
               <div>
                 <div className="text-sm text-text-secondary mb-1">DNS Nameserver</div>
-                <div className="text-text-primary font-mono">{project.network.nameserver}</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.nameserver}</div>
               </div>
             )}
             {project.network.vlan_tag && (
               <div>
                 <div className="text-sm text-text-secondary mb-1">VLAN Tag</div>
-                <div className="text-text-primary font-mono">{project.network.vlan_tag}</div>
+                <div className="text-text-primary font-mono text-sm">{project.network.vlan_tag}</div>
               </div>
             )}
           </div>
-          <div className="mt-4 p-3 bg-background-elevated rounded-lg">
-            <p className="text-sm text-text-muted">
-              <span className="text-primary font-medium">Note:</span> New containers created in this project will automatically use these network settings.
-            </p>
+          <div className="mt-4 p-3 bg-background-elevated rounded-lg border border-border">
+            <div className="flex items-start gap-2">
+              <Network className="w-4 h-4 text-primary mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-text-secondary">
+                  This project has a dedicated isolated network with automatic DHCP. Containers in this project will automatically receive IP addresses from the configured subnet range.
+                </p>
+                {project.network.auto_created_zone && (
+                  <p className="text-xs text-text-muted mt-2">
+                    The SDN zone was auto-created for this project and will be removed when the project is deleted.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </Card>
       )}

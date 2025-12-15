@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +34,16 @@ func NewHandler(client *proxmox.Client, cache *cache.Cache, analytics *analytics
 		analytics:    analytics,
 		projectStore: projectStore,
 	}
+}
+
+// generateID generates a random hex ID for projects
+func generateID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based ID if random generation fails
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
 }
 
 // respondJSON sends a JSON response
@@ -890,73 +902,77 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If network configuration is provided, create VNet and subnet in Proxmox SDN
+	// Generate project ID first (we'll use this for SDN naming)
+	projectID := generateID()
+
+	// If network configuration is provided, validate and create SDN resources
 	if req.Network != nil && req.Network.Subnet != "" {
 		log.Printf("[INFO] Creating SDN network for project %s: subnet=%s, gateway=%s", req.Name, req.Network.Subnet, req.Network.Gateway)
 
-		// Get available SDN zones or create a default one
-		zones, err := h.client.GetSDNZones()
-		if err != nil {
-			log.Printf("[ERROR] Failed to get SDN zones: %v", err)
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get SDN zones: %v", err))
+		// Validate subnet format
+		if !proxmox.IsValidCIDR(req.Network.Subnet) {
+			respondError(w, http.StatusBadRequest, "invalid subnet CIDR format (must be network address like 10.0.1.0/24)")
 			return
 		}
 
-		var zone string
-		if len(zones) == 0 {
-			// No SDN zones exist, create a default simple zone
-			// Zone IDs must be alphanumeric only and max 8 characters
-			zone = "proxizon"
-			log.Printf("[INFO] No SDN zones found, creating default zone: %s", zone)
-
-			// Create a simple SDN zone with all cluster nodes
-			if err := h.client.CreateSDNZone(zone, "simple", ""); err != nil {
-				log.Printf("[ERROR] Failed to create default SDN zone: %v", err)
-				respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create default SDN zone: %v", err))
-				return
-			}
-
-			log.Printf("[INFO] Created default SDN zone: %s", zone)
-		} else {
-			// Use the first available zone
-			zone = zones[0].Zone
-			log.Printf("[INFO] Using existing SDN zone: %s", zone)
+		// Validate gateway is required
+		if req.Network.Gateway == "" {
+			respondError(w, http.StatusBadRequest, "gateway is required when subnet is specified")
+			return
 		}
 
-		// Generate VNet ID from project name (sanitize for Proxmox naming rules)
-		// VNet IDs must be alphanumeric only (no hyphens) and max 8 characters
-		projectNameClean := strings.ToLower(strings.ReplaceAll(req.Name, " ", ""))
-		// Remove all non-alphanumeric characters
-		projectNameClean = strings.Map(func(r rune) rune {
-			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-				return r
-			}
-			return -1
-		}, projectNameClean)
-
-		// Create VNet ID with prefix "vn" (2 chars) + up to 6 chars from project name
-		vnetID := "vn" + projectNameClean
-		if len(vnetID) > 8 {
-			vnetID = vnetID[:8]
+		// Validate gateway is within subnet
+		if err := proxmox.ValidateGatewayInSubnet(req.Network.Subnet, req.Network.Gateway); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Sprintf("gateway validation failed: %v", err))
+			return
 		}
 
+		// Generate unique zone/vnet identifier from project ID
+		// Format: "prj" + first 5 chars of projectID = 8 chars total
+		sdnID := proxmox.GenerateSDNIdentifier(projectID, req.Name)
+		zone := sdnID
+		vnetID := sdnID
+
+		log.Printf("[INFO] Generated SDN identifiers: zone=%s, vnet=%s for project %s", zone, vnetID, req.Name)
+
+		// Create per-project SDN zone with DHCP enabled
+		log.Printf("[INFO] Creating dedicated SDN zone: %s with DHCP enabled", zone)
+		if err := h.client.CreateSDNZone(zone, "simple", "", true); err != nil {
+			log.Printf("[ERROR] Failed to create SDN zone: %v", err)
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create SDN zone: %v", err))
+			return
+		}
+
+		// Create VNet in the new zone
 		log.Printf("[INFO] Creating VNet: %s in zone: %s", vnetID, zone)
-
-		// Create VNet
 		if err := h.client.CreateVNet(vnetID, zone, req.Network.VLanTag); err != nil {
-			log.Printf("[ERROR] Failed to create VNet: %v", err)
+			log.Printf("[ERROR] Failed to create VNet: %v, attempting to cleanup zone", err)
+			// Cleanup zone on failure
+			if cleanupErr := h.client.DeleteSDNZone(zone); cleanupErr != nil {
+				log.Printf("[WARNING] Failed to cleanup zone after VNet creation failure: %v", cleanupErr)
+			}
 			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create VNet: %v", err))
 			return
 		}
 
-		// Create Subnet
-		log.Printf("[INFO] Creating subnet: %s with gateway: %s", req.Network.Subnet, req.Network.Gateway)
-		if err := h.client.CreateSubnet(vnetID, req.Network.Subnet, req.Network.Gateway, true, ""); err != nil {
-			// Try to cleanup VNet if subnet creation fails
-			log.Printf("[ERROR] Failed to create subnet: %v, attempting to cleanup VNet", err)
-			if cleanupErr := h.client.DeleteVNet(vnetID); cleanupErr != nil {
-				log.Printf("[WARNING] Failed to cleanup VNet after subnet creation failure: %v", cleanupErr)
-			}
+		// Calculate DHCP range
+		dhcpRange, err := proxmox.CalculateDHCPRange(req.Network.Subnet, req.Network.Gateway)
+		if err != nil {
+			log.Printf("[ERROR] Failed to calculate DHCP range: %v", err)
+			// Cleanup VNet and zone on failure
+			h.client.DeleteVNet(vnetID)
+			h.client.DeleteSDNZone(zone)
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to calculate DHCP range: %v", err))
+			return
+		}
+
+		// Create Subnet with DHCP
+		log.Printf("[INFO] Creating subnet: %s with gateway: %s and DHCP range: %s", req.Network.Subnet, req.Network.Gateway, dhcpRange)
+		if err := h.client.CreateSubnet(vnetID, req.Network.Subnet, req.Network.Gateway, true, dhcpRange); err != nil {
+			// Try to cleanup VNet and zone if subnet creation fails
+			log.Printf("[ERROR] Failed to create subnet: %v, attempting to cleanup VNet and zone", err)
+			h.client.DeleteVNet(vnetID)
+			h.client.DeleteSDNZone(zone)
 			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create subnet: %v", err))
 			return
 		}
@@ -965,20 +981,20 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[INFO] Applying SDN configuration")
 		if err := h.client.ApplySDNConfig(); err != nil {
 			log.Printf("[ERROR] Failed to apply SDN config: %v", err)
-			// Note: We don't fail the whole operation here as the VNet/subnet were created
+			// Note: We don't fail the whole operation here as the resources were created
 			// The user can manually apply the config from Proxmox GUI
 			log.Printf("[WARNING] SDN configuration not applied, please apply manually from Proxmox GUI")
 		}
 
-		// Store VNet ID and zone in the network config for future reference
+		// Store SDN identifiers in the network config
 		req.Network.VNetID = vnetID
 		req.Network.Zone = zone
-		req.Network.AutoCreatedZone = len(zones) == 0 // Mark if we auto-created the zone
+		req.Network.AutoCreatedZone = true // We always auto-create per-project zones now
 
 		log.Printf("[INFO] Successfully created SDN network for project %s", req.Name)
 	}
 
-	project, err := h.projectStore.CreateProject(req)
+	project, err := h.projectStore.CreateProjectWithID(projectID, req)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1041,6 +1057,13 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
+	// Get project first to check for network config
+	project, err := h.projectStore.GetProject(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
 	// Get all containers to verify which ones still exist
 	existingContainers, err := h.client.GetContainers()
 	if err != nil {
@@ -1058,56 +1081,71 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	assignedVMIDs := h.projectStore.GetProjectContainers(id)
 
 	// Clean up any stale assignments (containers that no longer exist in Proxmox)
+	activeContainers := 0
 	for _, vmid := range assignedVMIDs {
 		if !existingVMIDs[vmid] {
 			log.Printf("[INFO] Cleaning up stale container assignment: VMID %d in project %s", vmid, id)
 			if err := h.projectStore.AssignContainer(vmid, ""); err != nil {
 				log.Printf("[WARNING] Failed to clean up stale assignment for VMID %d: %v", vmid, err)
 			}
-		}
-	}
-
-	// Get project to check for VNet cleanup
-	project, err := h.projectStore.GetProject(id)
-	if err != nil {
-		respondError(w, http.StatusNotFound, "project not found")
-		return
-	}
-
-	// Now try to delete the project
-	err = h.projectStore.DeleteProject(id)
-	if err != nil {
-		if err.Error() == "cannot delete project: containers still assigned" {
-			// Re-check after cleanup
-			remainingVMIDs := h.projectStore.GetProjectContainers(id)
-			if len(remainingVMIDs) > 0 {
-				respondError(w, http.StatusBadRequest, fmt.Sprintf("cannot delete project: %d container(s) still assigned", len(remainingVMIDs)))
-			} else {
-				respondError(w, http.StatusBadRequest, err.Error())
-			}
 		} else {
-			respondError(w, http.StatusInternalServerError, err.Error())
+			activeContainers++
 		}
+	}
+
+	// Check if any active containers still exist - block deletion if they do
+	if activeContainers > 0 {
+		respondError(w, http.StatusConflict,
+			fmt.Sprintf("cannot delete project: %d container(s) still assigned. Please delete or reassign containers first.", activeContainers))
 		return
 	}
 
-	// Clean up VNet if one was created for this project
+	// If project has SDN network, clean it up before deleting the project
 	if project.Network != nil && project.Network.VNetID != "" {
-		log.Printf("[INFO] Cleaning up VNet %s for deleted project %s", project.Network.VNetID, id)
-		if err := h.client.DeleteVNet(project.Network.VNetID); err != nil {
-			log.Printf("[WARNING] Failed to delete VNet %s: %v", project.Network.VNetID, err)
-			// Don't fail the delete operation if VNet cleanup fails
-			// The VNet can be manually deleted from Proxmox GUI
-		} else {
-			// Apply SDN configuration after deleting VNet
-			log.Printf("[INFO] Applying SDN configuration after VNet deletion")
-			if err := h.client.ApplySDNConfig(); err != nil {
-				log.Printf("[WARNING] Failed to apply SDN config after VNet deletion: %v", err)
+		log.Printf("[INFO] Cleaning up SDN resources for project %s", project.Name)
+
+		vnetID := project.Network.VNetID
+		zoneID := project.Network.Zone
+
+		// Step 1: Delete subnet(s) from vnet
+		if project.Network.Subnet != "" {
+			log.Printf("[INFO] Deleting subnet: %s", project.Network.Subnet)
+			if err := h.client.DeleteSubnet(vnetID, project.Network.Subnet); err != nil {
+				log.Printf("[WARNING] Failed to delete subnet: %v (continuing with cleanup)", err)
+				// Continue even if subnet deletion fails
 			}
+		}
+
+		// Step 2: Delete vnet
+		log.Printf("[INFO] Deleting VNet: %s", vnetID)
+		if err := h.client.DeleteVNet(vnetID); err != nil {
+			log.Printf("[WARNING] Failed to delete VNet: %v (continuing with cleanup)", err)
+		}
+
+		// Step 3: Delete zone (if auto-created by us)
+		if project.Network.AutoCreatedZone {
+			log.Printf("[INFO] Deleting auto-created SDN zone: %s", zoneID)
+			if err := h.client.DeleteSDNZone(zoneID); err != nil {
+				log.Printf("[WARNING] Failed to delete SDN zone: %v", err)
+				// Don't fail the whole operation
+			}
+		}
+
+		// Step 4: Apply SDN config to commit changes
+		log.Printf("[INFO] Applying SDN configuration after cleanup")
+		if err := h.client.ApplySDNConfig(); err != nil {
+			log.Printf("[WARNING] Failed to apply SDN config after cleanup: %v", err)
 		}
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	// Delete project from store
+	if err := h.projectStore.DeleteProject(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	log.Printf("[INFO] Successfully deleted project %s and cleaned up SDN resources", project.Name)
+	respondJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // GetProjectContainers gets containers for a project
