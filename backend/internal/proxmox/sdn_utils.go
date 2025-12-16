@@ -92,8 +92,8 @@ func ValidateGatewayInSubnet(subnet string, gateway string) error {
 }
 
 // CalculateDHCPRange calculates a DHCP range for Proxmox SDN
-// Returns a string in the format "start-ip=10.0.1.100,end-ip=10.0.1.200"
-// The range excludes the gateway and uses the upper portion of the subnet
+// Returns a string in the format "start-address=10.0.0.2,end-address=10.0.0.254"
+// The range uses all available IPs in the subnet except network address, broadcast, and gateway
 func CalculateDHCPRange(subnet string, gateway string) (string, error) {
 	// Parse subnet
 	_, ipNet, err := net.ParseCIDR(subnet)
@@ -107,15 +107,6 @@ func CalculateDHCPRange(subnet string, gateway string) (string, error) {
 		return "", fmt.Errorf("invalid gateway IP address")
 	}
 
-	// Calculate the usable IP range
-	// Network address is ipNet.IP
-	// Broadcast address (for IPv4) is calculated below
-
-	// For simplicity, we'll allocate the upper 50% of the subnet for DHCP
-	// For example, in a /24 network (254 usable IPs):
-	// - Gateway typically at .1
-	// - DHCP range from .100 to .200 (100 IPs)
-
 	// Get the subnet size
 	ones, bits := ipNet.Mask.Size()
 	if bits != 32 {
@@ -126,38 +117,32 @@ func CalculateDHCPRange(subnet string, gateway string) (string, error) {
 	// Calculate total hosts
 	totalHosts := 1 << uint(bits-ones)
 
-	// Calculate usable hosts (subtract network and broadcast)
-	usableHosts := totalHosts - 2
-
-	// Calculate DHCP range (upper 40% of usable IPs, or at least 10 IPs)
-	dhcpSize := usableHosts * 40 / 100
-	if dhcpSize < 10 && usableHosts >= 10 {
-		dhcpSize = 10
-	}
-	if dhcpSize > usableHosts {
-		dhcpSize = usableHosts
-	}
-
-	// Start DHCP range from a reasonable offset (e.g., .100 or 60% into the range)
-	startOffset := usableHosts * 60 / 100
-	if startOffset < 10 {
-		startOffset = 10
-	}
-
-	// Ensure we don't exceed the subnet
-	if startOffset+dhcpSize > usableHosts {
-		startOffset = usableHosts - dhcpSize
-		if startOffset < 1 {
-			startOffset = 1
-		}
-	}
-
-	// Convert network address to uint32 for easier math
+	// Convert network address and gateway to uint32 for easier math
 	networkIP := ipToUint32(ipNet.IP)
+	gatewayIPUint32 := ipToUint32(gatewayIP.To4())
 
-	// Calculate start and end IPs
-	startIP := uint32ToIP(networkIP + uint32(startOffset))
-	endIP := uint32ToIP(networkIP + uint32(startOffset+dhcpSize-1))
+	// Calculate broadcast address
+	broadcastIP := networkIP + uint32(totalHosts) - 1
+
+	// Start from first usable IP (network + 1)
+	startIPUint32 := networkIP + 1
+
+	// End at last usable IP (broadcast - 1)
+	endIPUint32 := broadcastIP - 1
+
+	// Skip gateway IP if it's at the start
+	if startIPUint32 == gatewayIPUint32 {
+		startIPUint32++
+	}
+
+	// Skip gateway IP if it's at the end
+	if endIPUint32 == gatewayIPUint32 {
+		endIPUint32--
+	}
+
+	// Convert back to IPs
+	startIP := uint32ToIP(startIPUint32)
+	endIP := uint32ToIP(endIPUint32)
 
 	// Format the range string for Proxmox SDN
 	return fmt.Sprintf("start-address=%s,end-address=%s", startIP.String(), endIP.String()), nil

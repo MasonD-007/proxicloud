@@ -130,6 +130,7 @@ export function validateGatewayInSubnet(
 
 /**
  * Calculates and displays a preview of the DHCP range for a given subnet and gateway
+ * Uses the entire available IP range except network address, broadcast, and gateway
  */
 export function calculateDHCPRangePreview(subnet: string, gateway: string): string {
   // Validate inputs first
@@ -149,37 +150,34 @@ export function calculateDHCPRangePreview(subnet: string, gateway: string): stri
   const subnetParts = subnetIP.split('.');
   const subnetOctets = subnetParts.map((p) => parseInt(p, 10));
 
-  // Calculate usable IPs
-  const subnetNum = (subnetOctets[0] << 24) | (subnetOctets[1] << 16) | (subnetOctets[2] << 8) | subnetOctets[3];
+  // Parse gateway
+  const gatewayParts = gateway.split('.');
+  const gatewayOctets = gatewayParts.map((p) => parseInt(p, 10));
+
+  // Calculate network, broadcast, and gateway as numbers
+  const networkNum = (subnetOctets[0] << 24) | (subnetOctets[1] << 16) | (subnetOctets[2] << 8) | subnetOctets[3];
+  const gatewayNum = (gatewayOctets[0] << 24) | (gatewayOctets[1] << 16) | (gatewayOctets[2] << 8) | gatewayOctets[3];
   const totalHosts = 1 << (32 - mask);
-  const usableHosts = totalHosts - 2; // Subtract network and broadcast
+  const broadcastNum = networkNum + totalHosts - 1;
 
-  // Calculate DHCP range (upper 40% of usable IPs, or at least 10 IPs)
-  let dhcpSize = Math.floor(usableHosts * 0.4);
-  if (dhcpSize < 10 && usableHosts >= 10) {
-    dhcpSize = 10;
-  }
-  if (dhcpSize > usableHosts) {
-    dhcpSize = usableHosts;
-  }
+  // Start from first usable IP (network + 1)
+  let startIPNum = networkNum + 1;
 
-  // Start DHCP range from 60% into the range
-  let startOffset = Math.floor(usableHosts * 0.6);
-  if (startOffset < 10) {
-    startOffset = 10;
+  // End at last usable IP (broadcast - 1)
+  let endIPNum = broadcastNum - 1;
+
+  // Skip gateway if it's at the start
+  if (startIPNum === gatewayNum) {
+    startIPNum++;
   }
 
-  // Ensure we don't exceed the subnet
-  if (startOffset + dhcpSize > usableHosts) {
-    startOffset = usableHosts - dhcpSize;
-    if (startOffset < 1) {
-      startOffset = 1;
-    }
+  // Skip gateway if it's at the end
+  if (endIPNum === gatewayNum) {
+    endIPNum--;
   }
 
-  // Calculate start and end IPs
-  const startIPNum = subnetNum + startOffset;
-  const endIPNum = subnetNum + startOffset + dhcpSize - 1;
+  // Calculate number of IPs in range
+  const dhcpSize = endIPNum - startIPNum + 1;
 
   const startIP = [
     (startIPNum >>> 24) & 0xff,
