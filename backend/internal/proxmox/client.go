@@ -1211,6 +1211,8 @@ func (c *Client) CreateVNet(vnetID string, zone string, tag int) error {
 }
 
 // CreateSubnet creates a subnet within a VNet
+// Note: Proxmox will internally create a subnet ID in the format {vnetID}-{subnet-with-dashes}
+// Example: VNet "prj5e587" + subnet "10.0.0.0/24" creates ID "prj5e587-10.0.0.0-24"
 func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat bool, dhcpRange string) error {
 	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets", vnetID)
 	fmt.Printf("[DEBUG] CreateSubnet: requesting path=%s, subnet=%s, gateway=%s, snat=%v\n", path, subnet, gateway, snat)
@@ -1237,7 +1239,8 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 		return fmt.Errorf("failed to create subnet: %w", err)
 	}
 
-	fmt.Printf("[INFO] CreateSubnet: created subnet %s in VNet %s\n", subnet, vnetID)
+	fmt.Printf("[INFO] CreateSubnet: created subnet %s in VNet %s (ID will be %s-%s)\n",
+		subnet, vnetID, vnetID, strings.ReplaceAll(subnet, "/", "-"))
 	return nil
 }
 
@@ -1263,11 +1266,12 @@ func (c *Client) GetSubnets(vnetID string) ([]map[string]interface{}, error) {
 }
 
 // DeleteSubnet deletes a subnet from a VNet
-// Proxmox SDN uses PUT with delete=1 to remove subnet configuration
+// Proxmox SDN subnet identifier format: {vnetID}-{subnet-with-dashes}
+// Example: For VNet "prj5e587" and subnet "10.0.0.0/24", the ID is "prj5e587-10.0.0.0-24"
 func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
 	fmt.Printf("[DEBUG] DeleteSubnet: attempting to delete subnet %s from VNet %s\n", subnet, vnetID)
 
-	// Get current subnets to verify it exists and get proper identifier
+	// Get current subnets to verify it exists and see the actual identifiers
 	subnets, err := c.GetSubnets(vnetID)
 	if err != nil {
 		fmt.Printf("[WARNING] Failed to list subnets: %v, proceeding anyway\n", err)
@@ -1278,30 +1282,18 @@ func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
 		}
 	}
 
-	// Proxmox SDN subnet deletion: Use PUT with delete=1 on the subnet endpoint
-	// The subnet ID in the path should match exactly how it was created
-	// For CIDR notation like "10.0.0.0/24", the path element is the CIDR itself
-	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, url.PathEscape(subnet))
-	fmt.Printf("[DEBUG] DeleteSubnet: using PUT with delete=1 at path=%s\n", path)
+	// Proxmox SDN uses a specific format for subnet IDs in the path:
+	// {vnetID}-{subnet-CIDR-with-dashes}
+	// Convert "10.0.0.0/24" -> "10.0.0.0-24" and prepend vnetID
+	subnetDashes := strings.ReplaceAll(subnet, "/", "-")
+	subnetID := fmt.Sprintf("%s-%s", vnetID, subnetDashes)
 
-	params := map[string]interface{}{
-		"delete": 1,
-	}
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, subnetID)
+	fmt.Printf("[DEBUG] DeleteSubnet: DELETE path=%s (subnetID=%s)\n", path, subnetID)
 
-	_, err = c.doRequest("PUT", path, params)
+	_, err = c.doRequest("DELETE", path, nil)
 	if err != nil {
-		// If PUT with delete fails, it might be because Proxmox expects DELETE method
-		// or the subnet identifier format is different
-		fmt.Printf("[DEBUG] PUT with delete=1 failed: %v, trying DELETE method\n", err)
-
-		// Try DELETE method (works in some Proxmox versions)
-		_, err2 := c.doRequest("DELETE", path, nil)
-		if err2 != nil {
-			return fmt.Errorf("failed to delete subnet (tried PUT and DELETE): PUT error: %v, DELETE error: %v", err, err2)
-		}
-
-		fmt.Printf("[INFO] DeleteSubnet: successfully deleted subnet %s using DELETE method\n", subnet)
-		return nil
+		return fmt.Errorf("failed to delete subnet: %w", err)
 	}
 
 	fmt.Printf("[INFO] DeleteSubnet: successfully deleted subnet %s from VNet %s\n", subnet, vnetID)
