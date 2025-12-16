@@ -220,6 +220,9 @@ func (c *Client) GetContainer(vmid int) (*Container, error) {
 
 	container := &response.Data
 
+	// Set the node field since it's not returned in status/current endpoint
+	container.Node = c.node
+
 	// Fetch container config to get network information
 	configPath := fmt.Sprintf("/nodes/%s/lxc/%d/config", c.node, vmid)
 	configBody, err := c.doRequest("GET", configPath, nil)
