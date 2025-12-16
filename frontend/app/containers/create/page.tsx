@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Server } from 'lucide-react';
 import Link from 'next/link';
@@ -11,7 +11,7 @@ import Select from '@/components/ui/Select';
 import { createContainer, getTemplates, getProjects, getProject } from '@/lib/api';
 import type { CreateContainerRequest, Template, Project } from '@/lib/types';
 
-export default function CreateContainerPage() {
+function CreateContainerForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get('project_id');
@@ -531,5 +531,17 @@ export default function CreateContainerPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function CreateContainerPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full">
+        <div className="text-text-secondary">Loading...</div>
+      </div>
+    }>
+      <CreateContainerForm />
+    </Suspense>
   );
 }
