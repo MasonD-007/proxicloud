@@ -1241,44 +1241,70 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 	return nil
 }
 
-// DeleteSubnet deletes a subnet from a VNet
-// Proxmox SDN API requires special handling for subnet deletion
-func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
-	// The Proxmox SDN API uses a dash format for subnet IDs in the path
-	// Convert CIDR notation: "10.0.0.0/24" -> "10.0.0.0-24"
-	subnetID := strings.ReplaceAll(subnet, "/", "-")
+// GetSubnets retrieves all subnets for a VNet
+func (c *Client) GetSubnets(vnetID string) ([]map[string]interface{}, error) {
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets", vnetID)
+	fmt.Printf("[DEBUG] GetSubnets: requesting path=%s\n", path)
 
-	// Use the proper API path for subnet deletion
-	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, subnetID)
-	fmt.Printf("[DEBUG] DeleteSubnet: requesting DELETE path=%s (subnet=%s, subnetID=%s)\n", path, subnet, subnetID)
-
-	_, err := c.doRequest("DELETE", path, nil)
+	respBody, err := c.doRequest("GET", path, nil)
 	if err != nil {
-		// Check if this is a "not implemented" error (status 501)
-		// In some Proxmox versions, subnet deletion via API may not be available
-		if strings.Contains(err.Error(), "501") || strings.Contains(err.Error(), "not implemented") {
-			fmt.Printf("[WARNING] Subnet deletion not supported by Proxmox API (501), attempting workaround\n")
-
-			// Workaround: Try to update the VNet config to remove the subnet
-			// This uses PUT with a 'delete' parameter
-			vnetPath := fmt.Sprintf("/cluster/sdn/vnets/%s", vnetID)
-			params := map[string]interface{}{
-				"delete": "subnets",
-			}
-
-			_, err2 := c.doRequest("PUT", vnetPath, params)
-			if err2 != nil {
-				return fmt.Errorf("failed to delete subnet (API not implemented and workaround failed): %w", err)
-			}
-
-			fmt.Printf("[INFO] DeleteSubnet: removed subnet configuration via VNet update workaround\n")
-			return nil
-		}
-
-		return fmt.Errorf("failed to delete subnet: %w", err)
+		return nil, fmt.Errorf("failed to get subnets: %w", err)
 	}
 
-	fmt.Printf("[INFO] DeleteSubnet: deleted subnet %s from VNet %s\n", subnet, vnetID)
+	var response struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse subnets response: %w", err)
+	}
+
+	fmt.Printf("[INFO] GetSubnets: found %d subnets in VNet %s\n", len(response.Data), vnetID)
+	return response.Data, nil
+}
+
+// DeleteSubnet deletes a subnet from a VNet
+// Proxmox SDN uses PUT with delete=1 to remove subnet configuration
+func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
+	fmt.Printf("[DEBUG] DeleteSubnet: attempting to delete subnet %s from VNet %s\n", subnet, vnetID)
+
+	// Get current subnets to verify it exists and get proper identifier
+	subnets, err := c.GetSubnets(vnetID)
+	if err != nil {
+		fmt.Printf("[WARNING] Failed to list subnets: %v, proceeding anyway\n", err)
+	} else {
+		fmt.Printf("[DEBUG] Current subnets in VNet %s:\n", vnetID)
+		for i, s := range subnets {
+			fmt.Printf("[DEBUG]   %d: %+v\n", i, s)
+		}
+	}
+
+	// Proxmox SDN subnet deletion: Use PUT with delete=1 on the subnet endpoint
+	// The subnet ID in the path should match exactly how it was created
+	// For CIDR notation like "10.0.0.0/24", the path element is the CIDR itself
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, url.PathEscape(subnet))
+	fmt.Printf("[DEBUG] DeleteSubnet: using PUT with delete=1 at path=%s\n", path)
+
+	params := map[string]interface{}{
+		"delete": 1,
+	}
+
+	_, err = c.doRequest("PUT", path, params)
+	if err != nil {
+		// If PUT with delete fails, it might be because Proxmox expects DELETE method
+		// or the subnet identifier format is different
+		fmt.Printf("[DEBUG] PUT with delete=1 failed: %v, trying DELETE method\n", err)
+
+		// Try DELETE method (works in some Proxmox versions)
+		_, err2 := c.doRequest("DELETE", path, nil)
+		if err2 != nil {
+			return fmt.Errorf("failed to delete subnet (tried PUT and DELETE): PUT error: %v, DELETE error: %v", err, err2)
+		}
+
+		fmt.Printf("[INFO] DeleteSubnet: successfully deleted subnet %s using DELETE method\n", subnet)
+		return nil
+	}
+
+	fmt.Printf("[INFO] DeleteSubnet: successfully deleted subnet %s from VNet %s\n", subnet, vnetID)
 	return nil
 }
 
