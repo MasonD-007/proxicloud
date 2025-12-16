@@ -1407,14 +1407,14 @@ func (h *Handler) GetContainerTermProxy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Create terminal proxy
-	proxyData, err := h.client.CreateTermProxy(vmid)
+	// Create terminal proxy using the container's actual node
+	proxyData, err := h.client.CreateTermProxy(container.Node, vmid)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create terminal proxy for container %d: %v", vmid, err)
+		log.Printf("[ERROR] Failed to create terminal proxy for container %d on node %s: %v", vmid, container.Node, err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	log.Printf("[INFO] Terminal proxy created for container %d", vmid)
+	log.Printf("[INFO] Terminal proxy created for container %d on node %s", vmid, container.Node)
 	respondJSON(w, http.StatusOK, proxyData)
 }

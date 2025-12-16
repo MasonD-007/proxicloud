@@ -1407,9 +1407,9 @@ func (c *Client) GetStorage(req *GetStorageRequest) ([]Storage, error) {
 }
 
 // CreateTermProxy creates a terminal proxy connection for a container
-func (c *Client) CreateTermProxy(vmid int) (*TermProxyResponse, error) {
-	path := fmt.Sprintf("/nodes/%s/lxc/%d/termproxy", c.node, vmid)
-	fmt.Printf("[DEBUG] CreateTermProxy: requesting path=%s\n", path)
+func (c *Client) CreateTermProxy(node string, vmid int) (*TermProxyResponse, error) {
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/termproxy", node, vmid)
+	fmt.Printf("[DEBUG] CreateTermProxy: requesting path=%s, node=%s\n", path, node)
 
 	respBody, err := c.doRequest("POST", path, nil)
 	if err != nil {
