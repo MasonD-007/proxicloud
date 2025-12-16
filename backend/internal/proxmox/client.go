@@ -1242,13 +1242,39 @@ func (c *Client) CreateSubnet(vnetID string, subnet string, gateway string, snat
 }
 
 // DeleteSubnet deletes a subnet from a VNet
+// Proxmox SDN API requires special handling for subnet deletion
 func (c *Client) DeleteSubnet(vnetID string, subnet string) error {
-	// URL encode the subnet CIDR (e.g., "10.0.1.0/24" → "10.0.1.0%2F24")
-	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, url.PathEscape(subnet))
-	fmt.Printf("[DEBUG] DeleteSubnet: requesting path=%s\n", path)
+	// The Proxmox SDN API uses a dash format for subnet IDs in the path
+	// Convert CIDR notation: "10.0.0.0/24" -> "10.0.0.0-24"
+	subnetID := strings.ReplaceAll(subnet, "/", "-")
+
+	// Use the proper API path for subnet deletion
+	path := fmt.Sprintf("/cluster/sdn/vnets/%s/subnets/%s", vnetID, subnetID)
+	fmt.Printf("[DEBUG] DeleteSubnet: requesting DELETE path=%s (subnet=%s, subnetID=%s)\n", path, subnet, subnetID)
 
 	_, err := c.doRequest("DELETE", path, nil)
 	if err != nil {
+		// Check if this is a "not implemented" error (status 501)
+		// In some Proxmox versions, subnet deletion via API may not be available
+		if strings.Contains(err.Error(), "501") || strings.Contains(err.Error(), "not implemented") {
+			fmt.Printf("[WARNING] Subnet deletion not supported by Proxmox API (501), attempting workaround\n")
+
+			// Workaround: Try to update the VNet config to remove the subnet
+			// This uses PUT with a 'delete' parameter
+			vnetPath := fmt.Sprintf("/cluster/sdn/vnets/%s", vnetID)
+			params := map[string]interface{}{
+				"delete": "subnets",
+			}
+
+			_, err2 := c.doRequest("PUT", vnetPath, params)
+			if err2 != nil {
+				return fmt.Errorf("failed to delete subnet (API not implemented and workaround failed): %w", err)
+			}
+
+			fmt.Printf("[INFO] DeleteSubnet: removed subnet configuration via VNet update workaround\n")
+			return nil
+		}
+
 		return fmt.Errorf("failed to delete subnet: %w", err)
 	}
 

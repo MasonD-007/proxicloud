@@ -1133,28 +1133,33 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If project has SDN network, clean it up before deleting the project
+	// Order of operations: subnet -> vnet -> zone -> apply SDN config
 	if project.Network != nil && project.Network.VNetID != "" {
 		log.Printf("[INFO] Cleaning up SDN resources for project %s", project.Name)
 
 		vnetID := project.Network.VNetID
 		zoneID := project.Network.Zone
 
-		// Step 1: Delete subnet(s) from vnet
+		// Step 1: Delete subnet(s) from vnet first
+		// This must be done before deleting the vnet itself
 		if project.Network.Subnet != "" {
-			log.Printf("[INFO] Deleting subnet: %s", project.Network.Subnet)
+			log.Printf("[INFO] Deleting subnet: %s from VNet: %s", project.Network.Subnet, vnetID)
 			if err := h.client.DeleteSubnet(vnetID, project.Network.Subnet); err != nil {
 				log.Printf("[WARNING] Failed to delete subnet: %v (continuing with cleanup)", err)
-				// Continue even if subnet deletion fails
+				// Continue even if subnet deletion fails - the VNet deletion might cascade
 			}
 		}
 
 		// Step 2: Delete vnet
+		// This can only succeed if all subnets are removed
 		log.Printf("[INFO] Deleting VNet: %s", vnetID)
 		if err := h.client.DeleteVNet(vnetID); err != nil {
 			log.Printf("[WARNING] Failed to delete VNet: %v (continuing with cleanup)", err)
+			// Continue to try zone deletion
 		}
 
 		// Step 3: Delete zone (if auto-created by us)
+		// This can only succeed if all vnets are removed from the zone
 		if project.Network.AutoCreatedZone {
 			log.Printf("[INFO] Deleting auto-created SDN zone: %s", zoneID)
 			if err := h.client.DeleteSDNZone(zoneID); err != nil {
@@ -1163,10 +1168,13 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Step 4: Apply SDN config to commit changes
+		// Step 4: Apply SDN config to commit all changes
+		// This is equivalent to clicking "Apply" in the Proxmox UI
 		log.Printf("[INFO] Applying SDN configuration after cleanup")
 		if err := h.client.ApplySDNConfig(); err != nil {
 			log.Printf("[WARNING] Failed to apply SDN config after cleanup: %v", err)
+		} else {
+			log.Printf("[INFO] SDN configuration applied successfully")
 		}
 	}
 
