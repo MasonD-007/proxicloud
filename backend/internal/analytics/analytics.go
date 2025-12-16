@@ -54,7 +54,9 @@ func NewAnalytics(dbPath string) (*Analytics, error) {
 
 	analytics := &Analytics{db: db}
 	if err := analytics.initialize(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Failed to close database after initialization error: %v", closeErr)
+		}
 		return nil, err
 	}
 
@@ -147,7 +149,11 @@ func (a *Analytics) RecordMetrics(metrics []Metric) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			log.Printf("Failed to close statement: %v", closeErr)
+		}
+	}()
 
 	for _, metric := range metrics {
 		_, err := stmt.Exec(
@@ -185,7 +191,11 @@ func (a *Analytics) GetMetrics(vmid int, start, end time.Time, limit int) ([]Met
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Printf("Failed to close rows: %v", closeErr)
+		}
+	}()
 
 	var metrics []Metric
 	for rows.Next() {
@@ -359,7 +369,11 @@ func (a *Analytics) GetAllContainerMetrics() (map[int]*Metric, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Printf("Failed to close rows: %v", closeErr)
+		}
+	}()
 
 	metrics := make(map[int]*Metric)
 	for rows.Next() {

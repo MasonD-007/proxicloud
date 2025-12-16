@@ -25,7 +25,9 @@ func NewCache(dbPath string) (*Cache, error) {
 
 	cache := &Cache{db: db}
 	if err := cache.initialize(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Failed to close database after initialization error: %v", closeErr)
+		}
 		return nil, err
 	}
 
@@ -103,7 +105,11 @@ func (c *Cache) SetContainers(containers []proxmox.Container) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			log.Printf("Failed to close statement: %v", closeErr)
+		}
+	}()
 
 	now := time.Now()
 	for _, container := range containers {
@@ -127,7 +133,11 @@ func (c *Cache) GetContainers() ([]proxmox.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Printf("Failed to close rows: %v", closeErr)
+		}
+	}()
 
 	var containers []proxmox.Container
 	for rows.Next() {
@@ -276,7 +286,11 @@ func (c *Cache) SetVolumes(volumes []proxmox.Volume) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			log.Printf("Failed to close statement: %v", closeErr)
+		}
+	}()
 
 	now := time.Now()
 	for _, volume := range volumes {
@@ -300,7 +314,11 @@ func (c *Cache) GetVolumes() ([]proxmox.Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Printf("Failed to close rows: %v", closeErr)
+		}
+	}()
 
 	var volumes []proxmox.Volume
 	for rows.Next() {

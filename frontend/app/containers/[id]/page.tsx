@@ -128,7 +128,7 @@ export default function ContainerDetailPage() {
   async function handleOpenConsole() {
     try {
       setActionLoading(true);
-      const proxyData = await getContainerTermProxy(vmid);
+      await getContainerTermProxy(vmid);
       
       // Get Proxmox host from config or use current backend host
       // The backend knows the Proxmox host from config.yaml

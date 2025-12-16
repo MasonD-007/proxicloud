@@ -71,7 +71,11 @@ func main() {
 		log.Printf("Warning: Failed to initialize analytics: %v (continuing without analytics)", err)
 		analyticsInstance = nil
 	} else {
-		defer analyticsInstance.Close()
+		defer func() {
+			if err := analyticsInstance.Close(); err != nil {
+				log.Printf("Error closing analytics: %v", err)
+			}
+		}()
 		log.Printf("Analytics initialized at %s", analyticsDB)
 
 		// Start metrics collector

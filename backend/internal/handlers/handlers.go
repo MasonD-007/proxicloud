@@ -992,8 +992,12 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("[ERROR] Failed to calculate DHCP range: %v", err)
 			// Cleanup VNet and zone on failure
-			h.client.DeleteVNet(vnetID)
-			h.client.DeleteSDNZone(zone)
+			if delErr := h.client.DeleteVNet(vnetID); delErr != nil {
+				log.Printf("[ERROR] Failed to cleanup VNet: %v", delErr)
+			}
+			if delErr := h.client.DeleteSDNZone(zone); delErr != nil {
+				log.Printf("[ERROR] Failed to cleanup SDN zone: %v", delErr)
+			}
 			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to calculate DHCP range: %v", err))
 			return
 		}
@@ -1003,8 +1007,12 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		if err := h.client.CreateSubnet(vnetID, req.Network.Subnet, req.Network.Gateway, true, dhcpRange); err != nil {
 			// Try to cleanup VNet and zone if subnet creation fails
 			log.Printf("[ERROR] Failed to create subnet: %v, attempting to cleanup VNet and zone", err)
-			h.client.DeleteVNet(vnetID)
-			h.client.DeleteSDNZone(zone)
+			if delErr := h.client.DeleteVNet(vnetID); delErr != nil {
+				log.Printf("[ERROR] Failed to cleanup VNet: %v", delErr)
+			}
+			if delErr := h.client.DeleteSDNZone(zone); delErr != nil {
+				log.Printf("[ERROR] Failed to cleanup SDN zone: %v", delErr)
+			}
 			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create subnet: %v", err))
 			return
 		}
