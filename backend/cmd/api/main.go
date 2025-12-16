@@ -116,6 +116,7 @@ func main() {
 	api.HandleFunc("/containers/{vmid}/start", h.StartContainer).Methods("POST")
 	api.HandleFunc("/containers/{vmid}/stop", h.StopContainer).Methods("POST")
 	api.HandleFunc("/containers/{vmid}/reboot", h.RebootContainer).Methods("POST")
+	api.HandleFunc("/containers/{vmid}/termproxy", h.GetContainerTermProxy).Methods("POST")
 	api.HandleFunc("/templates", h.GetTemplates).Methods("GET")
 	api.HandleFunc("/templates/upload", h.UploadTemplate).Methods("POST")
 

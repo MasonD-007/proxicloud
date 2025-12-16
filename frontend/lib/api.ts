@@ -1,4 +1,4 @@
-import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest, ProjectContainersResponse, Storage, GetStorageRequest } from './types';
+import { Container, CreateContainerRequest, DashboardStats, MetricsData, MetricsSummary, Template, Volume, CreateVolumeRequest, AttachVolumeRequest, DetachVolumeRequest, Snapshot, CreateSnapshotRequest, RestoreSnapshotRequest, CloneSnapshotRequest, Project, CreateProjectRequest, UpdateProjectRequest, AssignProjectRequest, ProjectContainersResponse, Storage, GetStorageRequest, TermProxyResponse } from './types';
 
 // Support runtime API URL configuration
 // In standalone mode, this will be available at window location
@@ -398,5 +398,12 @@ export async function getStorage(params?: GetStorageRequest): Promise<Storage[]>
   }
   
   return fetchAPI(endpoint);
+}
+
+// Terminal/Console
+export async function getContainerTermProxy(vmid: number): Promise<TermProxyResponse> {
+  return fetchAPI(`/containers/${vmid}/termproxy`, {
+    method: 'POST',
+  });
 }
 

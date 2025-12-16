@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Server, Play, Square, RotateCw, Trash2, HardDrive, Cpu, MemoryStick, Network, Plus, Unlink } from 'lucide-react';
+import { ArrowLeft, Server, Play, Square, RotateCw, Trash2, HardDrive, Cpu, MemoryStick, Network, Plus, Unlink, Terminal } from 'lucide-react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { MetricsChart } from '@/components/analytics/MetricsChart';
 import { MetricsSummary } from '@/components/analytics/MetricsSummary';
-import { getContainer, startContainer, stopContainer, rebootContainer, deleteContainer, getVolumes, attachVolume, detachVolume } from '@/lib/api';
+import { getContainer, startContainer, stopContainer, rebootContainer, deleteContainer, getVolumes, attachVolume, detachVolume, getContainerTermProxy } from '@/lib/api';
 import { formatBytes, formatCPU, formatUptime } from '@/lib/utils';
 import type { Container, Volume } from '@/lib/types';
 
@@ -125,6 +125,38 @@ export default function ContainerDetailPage() {
     }
   }
 
+  async function handleOpenConsole() {
+    try {
+      setActionLoading(true);
+      const proxyData = await getContainerTermProxy(vmid);
+      
+      // Get Proxmox host from config or use current backend host
+      // The backend knows the Proxmox host from config.yaml
+      const backendUrl = new URL(window.location.href);
+      // Proxmox typically runs on port 8006
+      const proxmoxHost = backendUrl.hostname;
+      const proxmoxUrl = `https://${proxmoxHost}:8006`;
+      
+      // Build console URL with authentication ticket
+      const consoleUrl = `${proxmoxUrl}/?console=lxc&novnc=1&vmid=${vmid}&vmname=${encodeURIComponent(container?.name || '')}&node=${container?.node}&resize=scale&cmd=`;
+      
+      // Open in new window
+      const consoleWindow = window.open(
+        consoleUrl,
+        `console-${vmid}`,
+        'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no'
+      );
+      
+      if (!consoleWindow) {
+        alert('Please allow popups to open the console window');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open console');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -191,6 +223,15 @@ export default function ContainerDetailPage() {
               Stop
             </Button>
           )}
+          <Button
+            onClick={handleOpenConsole}
+            disabled={actionLoading || container.status !== 'running'}
+            variant="secondary"
+            title={container.status !== 'running' ? 'Container must be running to access console' : 'Open console'}
+          >
+            <Terminal className="w-4 h-4 mr-2" />
+            Console
+          </Button>
           <Button
             onClick={() => handleAction('reboot')}
             disabled={actionLoading || container.status === 'stopped'}
@@ -509,6 +550,16 @@ export default function ContainerDetailPage() {
           >
             <Square className="w-4 h-4 mr-2" />
             Stop
+          </Button>
+          <Button
+            onClick={handleOpenConsole}
+            disabled={actionLoading || container.status !== 'running'}
+            variant="secondary"
+            className="w-full"
+            title={container.status !== 'running' ? 'Container must be running to access console' : 'Open console'}
+          >
+            <Terminal className="w-4 h-4 mr-2" />
+            Console
           </Button>
           <Button
             onClick={() => handleAction('reboot')}

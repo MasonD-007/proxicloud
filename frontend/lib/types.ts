@@ -211,3 +211,10 @@ export interface GetStorageRequest {
   target?: string;    // If target is different to 'node'
 }
 
+export interface TermProxyResponse {
+  user: string;
+  ticket: string;
+  port: string;
+  upid: string;
+}
+

@@ -269,3 +269,11 @@ type SDNZone struct {
 	Nodes   string `json:"nodes,omitempty"`
 	MTU     int    `json:"mtu,omitempty"`
 }
+
+// TermProxyResponse represents the response from creating a terminal proxy
+type TermProxyResponse struct {
+	User   string `json:"user"`
+	Ticket string `json:"ticket"`
+	Port   string `json:"port"`
+	Upid   string `json:"upid"`
+}

@@ -1385,3 +1385,36 @@ func (h *Handler) GetStorage(w http.ResponseWriter, r *http.Request) {
 
 	respondJSONWithCache(w, http.StatusOK, storages, false)
 }
+
+// GetContainerTermProxy creates a terminal proxy for container console access
+func (h *Handler) GetContainerTermProxy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vmid, err := strconv.Atoi(vars["vmid"])
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid vmid")
+		return
+	}
+
+	// Check if container exists and is running
+	container, err := h.client.GetContainer(vmid)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "container not found")
+		return
+	}
+
+	if container.Status != "running" {
+		respondError(w, http.StatusBadRequest, "container must be running to access console")
+		return
+	}
+
+	// Create terminal proxy
+	proxyData, err := h.client.CreateTermProxy(vmid)
+	if err != nil {
+		log.Printf("[ERROR] Failed to create terminal proxy for container %d: %v", vmid, err)
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	log.Printf("[INFO] Terminal proxy created for container %d", vmid)
+	respondJSON(w, http.StatusOK, proxyData)
+}

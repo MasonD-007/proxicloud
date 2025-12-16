@@ -1405,3 +1405,24 @@ func (c *Client) GetStorage(req *GetStorageRequest) ([]Storage, error) {
 
 	return response.Data, nil
 }
+
+// CreateTermProxy creates a terminal proxy connection for a container
+func (c *Client) CreateTermProxy(vmid int) (*TermProxyResponse, error) {
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/termproxy", c.node, vmid)
+	fmt.Printf("[DEBUG] CreateTermProxy: requesting path=%s\n", path)
+
+	respBody, err := c.doRequest("POST", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create terminal proxy: %w", err)
+	}
+
+	var response struct {
+		Data TermProxyResponse `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse terminal proxy response: %w", err)
+	}
+
+	fmt.Printf("[INFO] CreateTermProxy: created proxy for container %d, port=%s\n", vmid, response.Data.Port)
+	return &response.Data, nil
+}
